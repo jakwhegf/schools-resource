@@ -1,6 +1,7 @@
-// URL gợi ý: ?item=among-us-online_v2&mode=html  |  ?item=myflash&mode=flash&file=myflash.swf
-// mode=html → GitHub Pages: /schools-resource/{item}/index.html
-// mode=flash → CDN/R2: /ubgx/swf/{item}/...
+// URL gợi ý:
+//   GitHub H5: ?item=among-us-online_v2&mode=html  → file trong repo: among-us-online_v2/index.html
+//   R2 H5:     ?item=among-us-online_v2&mode=html&storage=r2  → CDN ubgx/h5/{item}/index.html
+//   SWF:       ?item=myflash&mode=flash&file=myflash.swf
 //
 // HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
 // Muốn qua CDN Worker: đổi thành "https://cdn.ubgx.me" (path vẫn /{item}/index.html)
@@ -11,6 +12,19 @@ const R2_DOMAIN = "https://cdn.ubgx.me";
 const R2_BUCKET = "";
 
 const R2_SWF_PREFIX = "ubgx/swf";
+const R2_H5_PREFIX = "ubgx/h5";
+
+/** github (mặc định) | r2 — game H5 trên Pages hay trên bucket */
+function resolveH5IframeSrc(resourceId, urlParams) {
+  const raw = (urlParams.get("storage") || urlParams.get("from") || "github")
+    .trim()
+    .toLowerCase();
+  if (raw === "r2" || raw === "cdn" || raw === "bucket") {
+    const prefix = R2_H5_PREFIX.replace(/^\/+|\/+$/g, "");
+    return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
+  }
+  return h5IndexUrl(resourceId);
+}
 
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
 
@@ -99,8 +113,8 @@ function h5IndexUrl(resourceId) {
   return `${base}/${segs.join("/")}/index.html`;
 }
 
-function mountHtml5Embed(container, resourceId) {
-  const url = h5IndexUrl(resourceId);
+function mountHtml5Embed(container, resourceId, urlParams) {
+  const url = resolveH5IframeSrc(resourceId, urlParams);
   const iframe = document.createElement("iframe");
   iframe.className = "schools-embed-frame";
   iframe.src = url;
@@ -141,7 +155,7 @@ if (window.self === window.top) {
   if (!resourceId) {
     showError(
       container,
-      "Lỗi: Thiếu định danh. Ví dụ: ?item=slope&mode=html hoặc ?slug=slope&mode=flash"
+      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html hoặc &storage=r2 nếu game chỉ có trên R2."
     );
   } else if (kind === "swf") {
     mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
@@ -150,6 +164,6 @@ if (window.self === window.top) {
       showError(container, err.message || "Không mở được nội dung SWF.");
     });
   } else {
-    mountHtml5Embed(container, resourceId);
+    mountHtml5Embed(container, resourceId, urlParams);
   }
 }
