@@ -1,10 +1,8 @@
-// URL:
-//   H5 trên GitHub Pages (jakwhegf.github.io/.../schools-resource): ?item=folder&mode=html → cùng origin …/folder/index.html (mặc định)
-//   H5 qua R2/CDN (shell trên cdn.ubgx.me hoặc ghi rõ): ?storage=r2&item=…&mode=html → cdn …/ubgx/h5/{item}/index.html
-//   SWF: luôn qua CDN …/ubgx/…/file.swf
-//
-// HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
-// Muốn qua CDN Worker: đổi thành "https://cdn.ubgx.me" (path vẫn /{item}/index.html)
+// GitHub Pages chỉ host shell (index.html + main.js): truyền ?item= / ?mode= / ?file=.
+// Game H5 + SWF thực tế luôn lấy từ R2 qua CDN (mặc định):
+//   H5: ?item=folder&mode=html → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
+//   SWF: ?mode=flash&file=game.swf → …/ubgx/…/game.swf
+// Tùy chọn ?storage=github chỉ khi test file H5 tạm trên repo (không dùng cho production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
 // SWF: R2 qua CDN (Worker /ubgx/*). Nếu dùng endpoint S3 API, điền R2_BUCKET.
@@ -15,26 +13,12 @@ const R2_BUCKET = "";
 const R2_SWF_PREFIX = "ubgx";
 const R2_H5_PREFIX = "ubgx/h5";
 
-/** Khi shell không phải GitHub Pages (vd. CDN), H5 mặc định lấy từ R2. */
+/** Mặc định H5 từ R2/CDN (shell có thể là GitHub Pages hoặc cdn.ubgx.me). */
 const H5_DEFAULT_STORAGE = "r2";
-
-/** Trên jakwhegf.github.io/.../schools-resource thì ưu tiên game trong repo; ngược lại dùng R2. */
-function defaultH5StorageForOrigin() {
-  try {
-    const host = window.location.hostname;
-    const path = window.location.pathname || "";
-    if (host === "jakwhegf.github.io" && path.includes("/schools-resource")) {
-      return "github";
-    }
-  } catch {
-    /* ignore */
-  }
-  return H5_DEFAULT_STORAGE;
-}
 
 /** r2 | github — iframe H5 */
 function resolveH5IframeSrc(resourceId, urlParams) {
-  const raw = (urlParams.get("storage") || urlParams.get("from") || defaultH5StorageForOrigin())
+  const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
     .trim()
     .toLowerCase();
   if (raw === "github" || raw === "pages" || raw === "gh") {
