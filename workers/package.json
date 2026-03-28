@@ -1,0 +1,11 @@
+{
+  "private": true,
+  "name": "schools-resource-worker",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "devDependencies": {
+    "wrangler": "^3.114.0"
+  }
+}

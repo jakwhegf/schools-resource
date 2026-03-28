@@ -1,11 +1,14 @@
-// Public R2 (S3 endpoint — thường cần kèm tên bucket trong path, xem R2_BUCKET)
-const R2_DOMAIN = "https://367d8bec50c5512df7e40222efd63eb9.r2.cloudflarestorage.com";
+// URL gợi ý: ?item=slope&mode=html  |  ?item=myflash&mode=flash&file=myflash.swf
+// mode: html (mặc định) = H5, flash = SWF qua Ruffle. Alias cũ: ?id= &type=
+//
+// R2 qua CDN (Worker phục vụ prefix /ubgx/* trên cùng host). Fallback: endpoint .r2.cloudflarestorage.com + R2_BUCKET.
+const R2_DOMAIN = "https://cdn.ubgx.me";
 
-// Để trống nếu custom domain trỏ thẳng vào bucket; nếu dùng endpoint trên thì điền tên bucket
+// Chỉ dùng khi R2_DOMAIN là S3 API (…r2.cloudflarestorage.com): điền tên bucket. Với cdn.ubgx.me để trống.
 const R2_BUCKET = "";
 
-// Tiền tố thư mục game trong bucket (không có / ở đầu/cuối)
-const R2_GAME_PREFIXES = {
+// Tiền tố thư mục nội dung trên bucket (ubgx/h5 = HTML, ubgx/swf = SWF)
+const R2_RESOURCE_PREFIXES = {
   h5: "ubgx/h5",
   swf: "ubgx/swf",
 };
@@ -21,15 +24,31 @@ function r2PublicUrl(relativeKey) {
   return `${base}/${bucketSeg}${encodedPath}`;
 }
 
-function normalizeGameType(raw) {
-  const t = (raw || "h5").toLowerCase();
-  if (t === "swf" || t === "flash") return "swf";
-  if (t === "h5" || t === "html" || t === "html5") return "h5";
+/** Trả về "h5" | "swf" từ mode/type mới hoặc cũ. */
+function resolvePlaybackKind(urlParams) {
+  const raw = (
+    urlParams.get("mode") ||
+    urlParams.get("type") ||
+    "html"
+  )
+    .trim()
+    .toLowerCase();
+  if (raw === "flash" || raw === "swf") return "swf";
+  if (raw === "html" || raw === "page" || raw === "web" || raw === "h5" || raw === "html5") return "h5";
   return "h5";
 }
 
-function swfFilenameFromParams(urlParams, gameId) {
-  const fallback = `${String(gameId).replace(/[/\\]/g, "")}.swf`;
+/** Ưu tiên item → slug → id (tương thích link cũ). */
+function resolveResourceId(urlParams) {
+  const v =
+    urlParams.get("item") ||
+    urlParams.get("slug") ||
+    urlParams.get("id");
+  return (v && String(v).trim()) || "";
+}
+
+function swfFilenameFromParams(urlParams, resourceId) {
+  const fallback = `${String(resourceId).replace(/[/\\]/g, "")}.swf`;
   const raw = (urlParams.get("file") || fallback).trim();
   const base = raw.replace(/^.*[/\\]/, "");
   if (!base || base.includes("..")) return fallback;
@@ -52,7 +71,7 @@ function loadRuffleScript() {
     s.src = RUFFLE_SCRIPT;
     s.async = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Không tải được Ruffle (SWF cần Ruffle trên trình duyệt)."));
+    s.onerror = () => reject(new Error("Không tải được Ruffle (cần để phát SWF)."));
     document.head.appendChild(s);
   });
 }
@@ -70,27 +89,27 @@ function showError(container, message) {
   container.innerHTML = `<h2 class="error-msg">${message}</h2>`;
 }
 
-function mountHtml5Game(container, gameId) {
-  const prefix = R2_GAME_PREFIXES.h5.replace(/^\/+|\/+$/g, "");
-  const url = r2PublicUrl(`${prefix}/${gameId}/index.html`);
+function mountHtml5Embed(container, resourceId) {
+  const prefix = R2_RESOURCE_PREFIXES.h5.replace(/^\/+|\/+$/g, "");
+  const url = r2PublicUrl(`${prefix}/${resourceId}/index.html`);
   const iframe = document.createElement("iframe");
-  iframe.className = "game-frame";
+  iframe.className = "schools-embed-frame";
   iframe.src = url;
   iframe.setAttribute("allowfullscreen", "true");
   iframe.setAttribute("scrolling", "no");
-  iframe.setAttribute("title", "Game");
+  iframe.setAttribute("title", "Schools resource");
   container.appendChild(iframe);
 }
 
-async function mountSwfGame(container, gameId, urlParams) {
-  const prefix = R2_GAME_PREFIXES.swf.replace(/^\/+|\/+$/g, "");
-  const swfName = swfFilenameFromParams(urlParams, gameId);
-  const swfUrl = r2PublicUrl(`${prefix}/${gameId}/${swfName}`);
+async function mountSwfEmbed(container, resourceId, urlParams) {
+  const prefix = R2_RESOURCE_PREFIXES.swf.replace(/^\/+|\/+$/g, "");
+  const swfName = swfFilenameFromParams(urlParams, resourceId);
+  const swfUrl = r2PublicUrl(`${prefix}/${resourceId}/${swfName}`);
 
   await ensureRuffleReady();
   const ruffle = window.RufflePlayer.newest();
   const player = ruffle.createPlayer();
-  player.className = "game-ruffle";
+  player.className = "schools-embed-ruffle";
   container.appendChild(player);
   await player.load({
     url: swfUrl,
@@ -106,19 +125,22 @@ if (window.self === window.top) {
   window.stop();
 } else {
   const urlParams = new URLSearchParams(window.location.search);
-  const gameId = urlParams.get("id");
-  const type = normalizeGameType(urlParams.get("type"));
-  const container = document.getElementById("game-container");
+  const resourceId = resolveResourceId(urlParams);
+  const kind = resolvePlaybackKind(urlParams);
+  const container = document.getElementById("schools-resource-container");
 
-  if (!gameId) {
-    showError(container, "Lỗi: Không tìm thấy dữ liệu game (thiếu ?id=).");
-  } else if (type === "swf") {
-    mountSwfGame(container, gameId, urlParams).catch((err) => {
+  if (!resourceId) {
+    showError(
+      container,
+      "Lỗi: Thiếu định danh. Ví dụ: ?item=slope&mode=html hoặc ?slug=slope&mode=flash"
+    );
+  } else if (kind === "swf") {
+    mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
       console.error(err);
       container.replaceChildren();
-      showError(container, err.message || "Không mở được game SWF.");
+      showError(container, err.message || "Không mở được nội dung SWF.");
     });
   } else {
-    mountHtml5Game(container, gameId);
+    mountHtml5Embed(container, resourceId);
   }
 }
