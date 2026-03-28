@@ -78,12 +78,21 @@ function resolvePlaybackKind(urlParams) {
   return "h5";
 }
 
-/** Ưu tiên item → slug → id (tương thích link cũ). Chuẩn hoá %20 / mã hoá lặp cho tên có dấu cách. */
+/** item → slug → id; với SWF có thể chỉ truyền file=ten.swf (suy stem làm item). */
 function resolveResourceId(urlParams) {
   let v =
     urlParams.get("item") ||
     urlParams.get("slug") ||
     urlParams.get("id");
+  if (!v || !String(v).trim()) {
+    const rawFile = (urlParams.get("file") || "").trim();
+    const mode = (urlParams.get("mode") || urlParams.get("type") || "").toLowerCase();
+    const swfMode = mode === "flash" || mode === "swf";
+    if (swfMode && /\.swf$/i.test(rawFile) && !rawFile.includes("..")) {
+      const base = rawFile.replace(/^.*[/\\]/, "").replace(/\.swf$/i, "");
+      if (base) v = base;
+    }
+  }
   if (!v) return "";
   v = String(v).trim();
   try {
@@ -179,29 +188,27 @@ async function mountSwfEmbed(container, resourceId, urlParams) {
   });
 }
 
-// 1. KHÓA BẢO MẬT: Kiểm tra xem có nằm trong Iframe của Google Sites không?
-if (window.self === window.top) {
-  document.body.innerHTML =
-    '<h2 class="error-msg">Truy cập bị từ chối. Vui lòng vào trang web chính thức!</h2>';
-  window.stop();
-} else {
-  const urlParams = bootstrapUrlParams();
-  const resourceId = resolveResourceId(urlParams);
-  const kind = resolvePlaybackKind(urlParams);
-  const container = document.getElementById("schools-resource-container");
+// Chặn mở trang shell trống (không có game). Có ?item= / ?file=.swf thì cho chạy cả trong tab và iframe.
+const urlParams = bootstrapUrlParams();
+const resourceId = resolveResourceId(urlParams);
+const kind = resolvePlaybackKind(urlParams);
+const container = document.getElementById("schools-resource-container");
 
-  if (!resourceId) {
-    showError(
-      container,
-      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html (R2) hoặc mode=flash cho SWF."
-    );
-  } else if (kind === "swf") {
-    mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
-      console.error(err);
-      container.replaceChildren();
-      showError(container, err.message || "Không mở được nội dung SWF.");
-    });
-  } else {
-    mountHtml5Embed(container, resourceId, urlParams);
-  }
+if (window.self === window.top && !resourceId) {
+  document.body.innerHTML =
+    '<h2 class="error-msg">Truy cập bị từ chối. Mở qua liên kết game (có ?item=…) hoặc nhúng iframe.</h2>';
+  window.stop?.();
+} else if (!resourceId) {
+  showError(
+    container,
+    "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html hoặc ?mode=flash&file=game.swf"
+  );
+} else if (kind === "swf") {
+  mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
+    console.error(err);
+    container.replaceChildren();
+    showError(container, err.message || "Không mở được nội dung SWF.");
+  });
+} else {
+  mountHtml5Embed(container, resourceId, urlParams);
 }
