@@ -31,14 +31,26 @@ function resolveH5IframeSrc(resourceId, urlParams) {
 
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
 
-/** Google Sites đôi khi làm mất ?query trên URL iframe; hỗ trợ #item=...&mode=html */
+/**
+ * Google Sites có thể chèn thêm "?" → URL dạng index.html??item=...
+ * URLSearchParams(search) khi đó tạo key "?item" thay vì "item" → thiếu định danh.
+ */
+function parseFlexibleQuery(raw) {
+  const s = String(raw || "")
+    .trim()
+    .replace(/^#+/u, "")
+    .replace(/^\?+/u, "");
+  return new URLSearchParams(s);
+}
+
+/** Ưu tiên ?query; nếu trống → hash #item=...&mode=html */
 function bootstrapUrlParams() {
-  const search = new URLSearchParams(window.location.search);
+  const search = parseFlexibleQuery(window.location.search);
   if ([...search.keys()].length > 0) return search;
-  const hash = window.location.hash.replace(/^#/, "").trim();
+  const hash = window.location.hash.replace(/^#+/u, "").trim();
   if (hash.includes("=")) {
     try {
-      return new URLSearchParams(hash);
+      return parseFlexibleQuery(hash);
     } catch {
       /* ignore */
     }
