@@ -27,30 +27,16 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   }
   const prefix = R2_H5_PREFIX.replace(/^\/+|\/+$/g, "");
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
-}
-
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
 
-/**
- * Google Sites có thể chèn thêm "?" → URL dạng index.html??item=...
- * URLSearchParams(search) khi đó tạo key "?item" thay vì "item" → thiếu định danh.
- */
-function parseFlexibleQuery(raw) {
-  const s = String(raw || "")
-    .trim()
-    .replace(/^#+/u, "")
-    .replace(/^\?+/u, "");
-  return new URLSearchParams(s);
-}
-
-/** Ưu tiên ?query; nếu trống → hash #item=...&mode=html */
+/** Google Sites đôi khi làm mất ?query trên URL iframe; hỗ trợ #item=...&mode=html */
 function bootstrapUrlParams() {
-  const search = parseFlexibleQuery(window.location.search);
+  const search = new URLSearchParams(window.location.search);
   if ([...search.keys()].length > 0) return search;
-  const hash = window.location.hash.replace(/^#+/u, "").trim();
+  const hash = window.location.hash.replace(/^#/, "").trim();
   if (hash.includes("=")) {
     try {
-      return parseFlexibleQuery(hash);
+      return new URLSearchParams(hash);
     } catch {
       /* ignore */
     }
