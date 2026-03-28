@@ -1,6 +1,8 @@
 // GitHub Pages chỉ host shell (index.html + main.js): truyền ?item= / ?mode= / ?file=.
 // Game H5 + SWF thực tế luôn lấy từ R2 qua CDN (mặc định):
 //   H5: ?item=folder&mode=html → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
+//   Worker chèn <base href="…/ubgx/h5/{item}/"> vào index.html để đường dẫn tương đối (data/, assets/) đúng.
+//   Nếu game vẫn lỗi: kiểm tra chỗ dùng đường dẫn tuyệt đối kiểu "/file.json" (sẽ gọi nhầm gốc host, phải đổi thành tương đối hoặc full URL trong /ubgx/h5/...).
 //   SWF: ?mode=flash&file=game.swf → …/ubgx/…/game.swf
 // Tùy chọn ?storage=github chỉ khi test file H5 tạm trên repo (không dùng cho production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
