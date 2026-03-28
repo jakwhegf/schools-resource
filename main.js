@@ -1,7 +1,7 @@
-// URL gợi ý (mode=html mặc định lấy H5 từ R2/CDN; game trong repo thì thêm storage=github):
-//   R2 H5:     ?item=among-us-online_v2&mode=html
-//   GitHub H5: ?item=my-folder&mode=html&storage=github  → repo: my-folder/index.html
-//   SWF:       ?item=myflash&mode=flash&file=myflash.swf
+// URL (toàn bộ nội dung game H5/SWF lấy từ bucket R2 qua CDN):
+//   H5:  ?item=ten-folder&mode=html  → cdn …/ubgx/h5/{item}/index.html
+//   SWF: ?item=…&mode=flash&file=game.swf  → cdn …/ubgx/game.swf (object ở gốc bucket, không folder swf/)
+//   Chỉ khi test từ GitHub Pages (file trong repo): ?storage=github
 //
 // HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
 // Muốn qua CDN Worker: đổi thành "https://cdn.ubgx.me" (path vẫn /{item}/index.html)
@@ -11,13 +11,14 @@ const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 const R2_DOMAIN = "https://cdn.ubgx.me";
 const R2_BUCKET = "";
 
-const R2_SWF_PREFIX = "ubgx/swf";
+/** .swf cùng cấp URL /ubgx/ với /ubgx/h5/… — key R2 chỉ là tên file .swf */
+const R2_SWF_PREFIX = "ubgx";
 const R2_H5_PREFIX = "ubgx/h5";
 
-/** Mặc định "r2" vì H5 thường nằm bucket; đổi "github" nếu toàn bộ game chỉ trên Pages. */
+/** Mặc định R2/CDN; đặt "github" chỉ khi chạy H5 trực tiếp từ repo Pages. */
 const H5_DEFAULT_STORAGE = "r2";
 
-/** r2 | github — nguồn iframe H5 (chỉ Pages: ?storage=github) */
+/** r2 | github — iframe H5 */
 function resolveH5IframeSrc(resourceId, urlParams) {
   const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
     .trim()
@@ -27,16 +28,26 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   }
   const prefix = R2_H5_PREFIX.replace(/^\/+|\/+$/g, "");
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
+}
+
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
 
-/** Google Sites đôi khi làm mất ?query trên URL iframe; hỗ trợ #item=...&mode=html */
+function parseFlexibleQuery(raw) {
+  const s = String(raw || "")
+    .trim()
+    .replace(/^#+/u, "")
+    .replace(/^\?+/u, "");
+  return new URLSearchParams(s);
+}
+
+/** Google Sites: ?query bị đôi hoặc mất → dùng hash */
 function bootstrapUrlParams() {
-  const search = new URLSearchParams(window.location.search);
+  const search = parseFlexibleQuery(window.location.search);
   if ([...search.keys()].length > 0) return search;
-  const hash = window.location.hash.replace(/^#/, "").trim();
+  const hash = window.location.hash.replace(/^#+/u, "").trim();
   if (hash.includes("=")) {
     try {
-      return new URLSearchParams(hash);
+      return parseFlexibleQuery(hash);
     } catch {
       /* ignore */
     }
@@ -67,13 +78,22 @@ function resolvePlaybackKind(urlParams) {
   return "h5";
 }
 
-/** Ưu tiên item → slug → id (tương thích link cũ). */
+/** Ưu tiên item → slug → id (tương thích link cũ). Chuẩn hoá %20 / mã hoá lặp cho tên có dấu cách. */
 function resolveResourceId(urlParams) {
-  const v =
+  let v =
     urlParams.get("item") ||
     urlParams.get("slug") ||
     urlParams.get("id");
-  return (v && String(v).trim()) || "";
+  if (!v) return "";
+  v = String(v).trim();
+  try {
+    if (/%[0-9A-Fa-f]{2}/.test(v)) {
+      v = decodeURIComponent(v.replace(/\+/g, " "));
+    }
+  } catch {
+    /* giữ nguyên */
+  }
+  return v;
 }
 
 function swfFilenameFromParams(urlParams, resourceId) {
@@ -145,7 +165,7 @@ function mountHtml5Embed(container, resourceId, urlParams) {
 async function mountSwfEmbed(container, resourceId, urlParams) {
   const prefix = R2_SWF_PREFIX.replace(/^\/+|\/+$/g, "");
   const swfName = swfFilenameFromParams(urlParams, resourceId);
-  const swfUrl = r2PublicUrl(`${prefix}/${resourceId}/${swfName}`);
+  const swfUrl = r2PublicUrl(`${prefix}/${swfName}`);
 
   await ensureRuffleReady();
   const ruffle = window.RufflePlayer.newest();
@@ -173,7 +193,7 @@ if (window.self === window.top) {
   if (!resourceId) {
     showError(
       container,
-      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html (R2) hoặc &storage=github nếu game trong repo."
+      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html (R2) hoặc mode=flash cho SWF."
     );
   } else if (kind === "swf") {
     mountSwfEmbed(container, resourceId, urlParams).catch((err) => {

@@ -1,3 +1,3 @@
-https://jakwhegf.github.io/schools-resource/index.html?file=Feed-Us-2.swf&item=swf&mode=flash
+https://cdn.ubgx.me/index.html?item=Feed-Us-2&mode=flash&file=Feed-Us-2.swf
 
-https://jakwhegf.github.io/schools-resource/index.html?item=blockblast&mode=html
+https://cdn.ubgx.me/index.html?item=block-blast-2048&mode=html
