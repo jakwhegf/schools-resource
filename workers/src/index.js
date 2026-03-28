@@ -46,28 +46,76 @@ function buildR2KeyCandidates(pathname) {
   return [...new Set(out)];
 }
 
+/**
+ * Khi upload R2 lệch tiền tố (vd. chỉ h5/... hoặc chỉ ten-game/... ở root bucket),
+ * thử bỏ dần ubgx/ hoặc ubgx/h5|swf/
+ */
+function expandR2KeyCandidates(pathname) {
+  const primary = buildR2KeyCandidates(pathname);
+  const alt = [];
+  for (const k of primary) {
+    if (k.startsWith("ubgx/h5/") || k.startsWith("ubgx/swf/")) {
+      alt.push(k.slice("ubgx/".length));
+    }
+    if (k.startsWith("ubgx/h5/")) {
+      alt.push(k.slice("ubgx/h5/".length));
+    }
+    if (k.startsWith("ubgx/swf/")) {
+      alt.push(k.slice("ubgx/swf/".length));
+    }
+  }
+  const all = [...primary, ...alt];
+  return [...new Set(all)];
+}
+
+/**
+ * Construct / export HTML hay dùng tên file có dấu cách; upload R2 đôi khi đổi thành _ hoặc key chứa %20 literal.
+ */
+function r2KeySpaceVariants(key) {
+  const out = new Set([key]);
+  const parts = key.split("/");
+  const last = parts[parts.length - 1];
+  if (!last) return [...out];
+  const dir = parts.slice(0, -1).join("/");
+  const pfx = dir ? `${dir}/` : "";
+
+  if (last.includes(" ")) {
+    out.add(pfx + last.replace(/ /g, "_"));
+    out.add(pfx + last.replace(/ /g, "%20"));
+    out.add(pfx + last.replace(/ /g, "+"));
+  }
+  const audioExt = /\.(ogg|mp3|wav|m4a|opus|weba|aac)$/i;
+  if (audioExt.test(last) && last.includes("_")) {
+    out.add(pfx + last.replace(/_/g, " "));
+  }
+
+  return [...out];
+}
+
 async function serveFromR2(request, env, url) {
   if (!env.SCHOOLS_R2) {
     return new Response("R2 binding SCHOOLS_R2 chưa cấu hình trong Worker.", { status: 503 });
   }
 
-  const candidates = buildR2KeyCandidates(url.pathname);
+  const candidates = expandR2KeyCandidates(url.pathname);
   if (!candidates.length) {
     return new Response("Not Found", { status: 404, headers: r2CorsHeaders(request) });
   }
 
   for (const r2Key of candidates) {
-    if (request.method === "HEAD") {
-      const head = await env.SCHOOLS_R2.head(r2Key);
-      if (head) {
-        return new Response(null, { status: 200, headers: r2ObjectHeaders(head, r2Key, request) });
-      }
-    } else {
-      const obj = await env.SCHOOLS_R2.get(r2Key);
-      if (obj) {
-        const headers = r2ObjectHeaders(obj, r2Key, request);
-        headers.set("Cache-Control", "public, max-age=86400");
-        return new Response(obj.body, { status: 200, headers });
+    for (const variant of r2KeySpaceVariants(r2Key)) {
+      if (request.method === "HEAD") {
+        const head = await env.SCHOOLS_R2.head(variant);
+        if (head) {
+          return new Response(null, { status: 200, headers: r2ObjectHeaders(head, variant, request) });
+        }
+      } else {
+        const obj = await env.SCHOOLS_R2.get(variant);
+        if (obj) {
+          const headers = r2ObjectHeaders(obj, variant, request);
+          headers.set("Cache-Control", "public, max-age=86400");
+          return new Response(obj.body, { status: 200, headers });
+        }
       }
     }
   }
@@ -77,7 +125,22 @@ async function serveFromR2(request, env, url) {
 
 function r2ObjectHeaders(obj, key, request) {
   const headers = new Headers();
-  const ct = obj.httpMetadata?.contentType || guessContentType(key);
+  const fromMeta = (obj.httpMetadata?.contentType || "").trim();
+  const guessed = guessContentType(key);
+  let ct = fromMeta || guessed;
+
+  /** R2 hay để octet-stream / text/plain → module script & import bị chặn theo HTML spec */
+  const metaUntrusted =
+    !fromMeta ||
+    fromMeta === "binary/octet-stream" ||
+    fromMeta === "application/octet-stream" ||
+    /\boctet-stream\b/i.test(fromMeta) ||
+    (fromMeta === "text/plain" && guessed !== "application/octet-stream");
+
+  if (metaUntrusted && guessed !== "application/octet-stream") {
+    ct = guessed;
+  }
+
   if (ct) headers.set("Content-Type", ct);
   if (obj.size != null) headers.set("Content-Length", String(obj.size));
   if (obj.etag) headers.set("ETag", obj.etag);
@@ -103,7 +166,9 @@ function r2CorsHeaders(request) {
 function guessContentType(key) {
   const lower = key.toLowerCase();
   if (lower.endsWith(".html")) return "text/html; charset=utf-8";
-  if (lower.endsWith(".js")) return "application/javascript; charset=utf-8";
+  if (lower.endsWith(".js") || lower.endsWith(".mjs") || lower.endsWith(".cjs")) {
+    return "application/javascript; charset=utf-8";
+  }
   if (lower.endsWith(".css")) return "text/css; charset=utf-8";
   if (lower.endsWith(".json")) return "application/json; charset=utf-8";
   if (lower.endsWith(".swf")) return "application/x-shockwave-flash";
@@ -113,6 +178,13 @@ function guessContentType(key) {
   if (lower.endsWith(".svg")) return "image/svg+xml";
   if (lower.endsWith(".woff2")) return "font/woff2";
   if (lower.endsWith(".wasm")) return "application/wasm";
+  if (lower.endsWith(".ogg")) return "audio/ogg";
+  if (lower.endsWith(".mp3")) return "audio/mpeg";
+  if (lower.endsWith(".wav")) return "audio/wav";
+  if (lower.endsWith(".m4a")) return "audio/mp4";
+  if (lower.endsWith(".opus")) return "audio/ogg";
+  if (lower.endsWith(".weba")) return "audio/webm";
+  if (lower.endsWith(".aac")) return "audio/aac";
   return "application/octet-stream";
 }
 
