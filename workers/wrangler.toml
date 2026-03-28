@@ -10,10 +10,10 @@ GITHUB_PAGES_HOST = "jakwhegf.github.io"
 GITHUB_PAGES_PREFIX = "/schools-resource"
 PUBLIC_SITE_URL = "https://cdn.ubgx.me"
 
-# Route: hostname cdn trỏ vào worker này (zone = tên miền gốc).
+# Custom Domain: Cloudflare tự tạo DNS + SSL cho subdomain (zone ubgx.me đã có sẵn).
 [[routes]]
-pattern = "cdn.ubgx.me/*"
-zone_name = "ubgx.me"
+pattern = "cdn.ubgx.me"
+custom_domain = true
 
 # Bucket R2: ubgx — https://dash.cloudflare.com/.../r2/default/buckets/ubgx
 [[r2_buckets]]

@@ -1,17 +1,16 @@
-// URL gợi ý: ?item=slope&mode=html  |  ?item=myflash&mode=flash&file=myflash.swf
-// mode: html (mặc định) = H5, flash = SWF qua Ruffle. Alias cũ: ?id= &type=
+// URL gợi ý: ?item=among-us-online_v2&mode=html  |  ?item=myflash&mode=flash&file=myflash.swf
+// mode=html → GitHub Pages: /schools-resource/{item}/index.html
+// mode=flash → CDN/R2: /ubgx/swf/{item}/...
 //
-// R2 qua CDN (Worker phục vụ prefix /ubgx/* trên cùng host). Fallback: endpoint .r2.cloudflarestorage.com + R2_BUCKET.
-const R2_DOMAIN = "https://cdn.ubgx.me";
+// HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
+// Muốn qua CDN Worker: đổi thành "https://cdn.ubgx.me" (path vẫn /{item}/index.html)
+const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
-// Chỉ dùng khi R2_DOMAIN là S3 API (…r2.cloudflarestorage.com): điền tên bucket. Với cdn.ubgx.me để trống.
+// SWF: R2 qua CDN (Worker /ubgx/*). Nếu dùng endpoint S3 API, điền R2_BUCKET.
+const R2_DOMAIN = "https://cdn.ubgx.me";
 const R2_BUCKET = "";
 
-// Tiền tố thư mục nội dung trên bucket (ubgx/h5 = HTML, ubgx/swf = SWF)
-const R2_RESOURCE_PREFIXES = {
-  h5: "ubgx/h5",
-  swf: "ubgx/swf",
-};
+const R2_SWF_PREFIX = "ubgx/swf";
 
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
 
@@ -89,9 +88,19 @@ function showError(container, message) {
   container.innerHTML = `<h2 class="error-msg">${message}</h2>`;
 }
 
+function h5IndexUrl(resourceId) {
+  const base = H5_PAGES_BASE.replace(/\/+$/, "");
+  const segs = String(resourceId)
+    .split("/")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map(encodeURIComponent);
+  if (!segs.length) return `${base}/`;
+  return `${base}/${segs.join("/")}/index.html`;
+}
+
 function mountHtml5Embed(container, resourceId) {
-  const prefix = R2_RESOURCE_PREFIXES.h5.replace(/^\/+|\/+$/g, "");
-  const url = r2PublicUrl(`${prefix}/${resourceId}/index.html`);
+  const url = h5IndexUrl(resourceId);
   const iframe = document.createElement("iframe");
   iframe.className = "schools-embed-frame";
   iframe.src = url;
@@ -102,7 +111,7 @@ function mountHtml5Embed(container, resourceId) {
 }
 
 async function mountSwfEmbed(container, resourceId, urlParams) {
-  const prefix = R2_RESOURCE_PREFIXES.swf.replace(/^\/+|\/+$/g, "");
+  const prefix = R2_SWF_PREFIX.replace(/^\/+|\/+$/g, "");
   const swfName = swfFilenameFromParams(urlParams, resourceId);
   const swfUrl = r2PublicUrl(`${prefix}/${resourceId}/${swfName}`);
 
