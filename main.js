@@ -1,7 +1,7 @@
-// URL (toàn bộ nội dung game H5/SWF lấy từ bucket R2 qua CDN):
-//   H5:  ?item=ten-folder&mode=html  → cdn …/ubgx/h5/{item}/index.html
-//   SWF: ?item=…&mode=flash&file=game.swf  → cdn …/ubgx/game.swf (object ở gốc bucket, không folder swf/)
-//   Chỉ khi test từ GitHub Pages (file trong repo): ?storage=github
+// URL:
+//   H5 trên GitHub Pages (jakwhegf.github.io/.../schools-resource): ?item=folder&mode=html → cùng origin …/folder/index.html (mặc định)
+//   H5 qua R2/CDN (shell trên cdn.ubgx.me hoặc ghi rõ): ?storage=r2&item=…&mode=html → cdn …/ubgx/h5/{item}/index.html
+//   SWF: luôn qua CDN …/ubgx/…/file.swf
 //
 // HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
 // Muốn qua CDN Worker: đổi thành "https://cdn.ubgx.me" (path vẫn /{item}/index.html)
@@ -15,12 +15,26 @@ const R2_BUCKET = "";
 const R2_SWF_PREFIX = "ubgx";
 const R2_H5_PREFIX = "ubgx/h5";
 
-/** Mặc định R2/CDN; đặt "github" chỉ khi chạy H5 trực tiếp từ repo Pages. */
+/** Khi shell không phải GitHub Pages (vd. CDN), H5 mặc định lấy từ R2. */
 const H5_DEFAULT_STORAGE = "r2";
+
+/** Trên jakwhegf.github.io/.../schools-resource thì ưu tiên game trong repo; ngược lại dùng R2. */
+function defaultH5StorageForOrigin() {
+  try {
+    const host = window.location.hostname;
+    const path = window.location.pathname || "";
+    if (host === "jakwhegf.github.io" && path.includes("/schools-resource")) {
+      return "github";
+    }
+  } catch {
+    /* ignore */
+  }
+  return H5_DEFAULT_STORAGE;
+}
 
 /** r2 | github — iframe H5 */
 function resolveH5IframeSrc(resourceId, urlParams) {
-  const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
+  const raw = (urlParams.get("storage") || urlParams.get("from") || defaultH5StorageForOrigin())
     .trim()
     .toLowerCase();
   if (raw === "github" || raw === "pages" || raw === "gh") {
