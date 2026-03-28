@@ -1,6 +1,6 @@
-// URL gợi ý:
-//   GitHub H5: ?item=among-us-online_v2&mode=html  → file trong repo: among-us-online_v2/index.html
-//   R2 H5:     ?item=among-us-online_v2&mode=html&storage=r2  → CDN ubgx/h5/{item}/index.html
+// URL gợi ý (mode=html mặc định lấy H5 từ R2/CDN; game trong repo thì thêm storage=github):
+//   R2 H5:     ?item=among-us-online_v2&mode=html
+//   GitHub H5: ?item=my-folder&mode=html&storage=github  → repo: my-folder/index.html
 //   SWF:       ?item=myflash&mode=flash&file=myflash.swf
 //
 // HTML5: cùng cấu trúc thư mục trong repo (vd. among-us-online_v2/index.html)
@@ -14,19 +14,37 @@ const R2_BUCKET = "";
 const R2_SWF_PREFIX = "ubgx/swf";
 const R2_H5_PREFIX = "ubgx/h5";
 
-/** github (mặc định) | r2 — game H5 trên Pages hay trên bucket */
+/** Mặc định "r2" vì H5 thường nằm bucket; đổi "github" nếu toàn bộ game chỉ trên Pages. */
+const H5_DEFAULT_STORAGE = "r2";
+
+/** r2 | github — nguồn iframe H5 (chỉ Pages: ?storage=github) */
 function resolveH5IframeSrc(resourceId, urlParams) {
-  const raw = (urlParams.get("storage") || urlParams.get("from") || "github")
+  const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
     .trim()
     .toLowerCase();
-  if (raw === "r2" || raw === "cdn" || raw === "bucket") {
-    const prefix = R2_H5_PREFIX.replace(/^\/+|\/+$/g, "");
-    return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
+  if (raw === "github" || raw === "pages" || raw === "gh") {
+    return h5IndexUrl(resourceId);
   }
-  return h5IndexUrl(resourceId);
+  const prefix = R2_H5_PREFIX.replace(/^\/+|\/+$/g, "");
+  return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
 }
 
 const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
+
+/** Google Sites đôi khi làm mất ?query trên URL iframe; hỗ trợ #item=...&mode=html */
+function bootstrapUrlParams() {
+  const search = new URLSearchParams(window.location.search);
+  if ([...search.keys()].length > 0) return search;
+  const hash = window.location.hash.replace(/^#/, "").trim();
+  if (hash.includes("=")) {
+    try {
+      return new URLSearchParams(hash);
+    } catch {
+      /* ignore */
+    }
+  }
+  return search;
+}
 
 function r2PublicUrl(relativeKey) {
   const key = String(relativeKey).replace(/^\/+/, "").replace(/\/+$/, "");
@@ -120,7 +138,9 @@ function mountHtml5Embed(container, resourceId, urlParams) {
   iframe.src = url;
   iframe.setAttribute("allowfullscreen", "true");
   iframe.setAttribute("scrolling", "no");
+  iframe.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
   iframe.setAttribute("title", "Schools resource");
+  iframe.setAttribute("loading", "lazy");
   container.appendChild(iframe);
 }
 
@@ -147,7 +167,7 @@ if (window.self === window.top) {
     '<h2 class="error-msg">Truy cập bị từ chối. Vui lòng vào trang web chính thức!</h2>';
   window.stop();
 } else {
-  const urlParams = new URLSearchParams(window.location.search);
+  const urlParams = bootstrapUrlParams();
   const resourceId = resolveResourceId(urlParams);
   const kind = resolvePlaybackKind(urlParams);
   const container = document.getElementById("schools-resource-container");
@@ -155,7 +175,7 @@ if (window.self === window.top) {
   if (!resourceId) {
     showError(
       container,
-      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html hoặc &storage=r2 nếu game chỉ có trên R2."
+      "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html (R2) hoặc &storage=github nếu game trong repo."
     );
   } else if (kind === "swf") {
     mountSwfEmbed(container, resourceId, urlParams).catch((err) => {

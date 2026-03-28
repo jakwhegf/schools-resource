@@ -81,6 +81,10 @@ function r2ObjectHeaders(obj, key, request) {
   if (ct) headers.set("Content-Type", ct);
   if (obj.size != null) headers.set("Content-Length", String(obj.size));
   if (obj.etag) headers.set("ETag", obj.etag);
+  /** Cho phép nhúng game H5 trong iframe (Google Sites / domain khác) */
+  if ((ct || "").toLowerCase().includes("text/html")) {
+    headers.set("Content-Security-Policy", "frame-ancestors *");
+  }
   r2CorsHeaders(request).forEach((value, name) => headers.set(name, value));
   return headers;
 }
