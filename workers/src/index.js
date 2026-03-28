@@ -34,6 +34,27 @@ export default {
   },
 };
 
+/**
+ * Chuẩn hoá path trước khi map sang R2 key — tên thư mục/file có dấu cách thường đi
+ * dạng %20 trong URL; nếu pathname chưa decode thì không khớp key trong bucket (khoảng trắng thật).
+ */
+function normalizeR2Pathname(pathname) {
+  const noDupSlash = pathname.replace(/\/+/g, "/");
+  const trimmed = noDupSlash.replace(/^\/+/, "").replace(/\/+$/, "");
+  if (!trimmed) return noDupSlash;
+  const segs = trimmed.split("/");
+  const decoded = segs.map((seg) => {
+    let s = seg.replace(/\+/g, " ");
+    try {
+      s = decodeURIComponent(s);
+    } catch {
+      /* giữ nguyên */
+    }
+    return s;
+  });
+  return `/${decoded.join("/")}${pathname.endsWith("/") && decoded.length ? "/" : ""}`;
+}
+
 /** R2 chỉ có object key: /ubgx/h5/foo/ hoặc .../foo → thử thêm /index.html */
 function buildR2KeyCandidates(pathname) {
   const key = pathname.replace(/^\/+/, "").replace(/\/+$/, "");
@@ -65,14 +86,38 @@ function expandR2KeyCandidates(pathname) {
     }
   }
   const all = [...primary, ...alt];
-  return [...new Set(all)];
+  /** Object .swf từng ở swf/… — thử lại khi client gọi /ubgx/tên.swf (key mới chỉ là tên file) */
+  const legacySwf = [];
+  for (const k of all) {
+    const flatName =
+      k.match(/^ubgx\/([^/]+\.swf)$/i)?.[1] || k.match(/^([^/]+\.swf)$/i)?.[1];
+    if (!flatName) continue;
+    const stem = flatName.replace(/\.swf$/i, "");
+    legacySwf.push(`swf/${flatName}`);
+    legacySwf.push(`ubgx/swf/${flatName}`);
+    if (stem) {
+      legacySwf.push(`swf/${stem}/${flatName}`);
+      legacySwf.push(`ubgx/swf/${stem}/${flatName}`);
+    }
+  }
+  return [...new Set([...all, ...legacySwf])];
 }
 
 /**
- * Construct / export HTML hay dùng tên file có dấu cách; upload R2 đôi khi đổi thành _ hoặc key chứa %20 literal.
+ * Thư mục/file có dấu cách: thử cả path đầy đủ (không chỉ tên file cuối).
+ * Một số tool upload dùng _ hoặc ký tự %20 trong key R2.
  */
 function r2KeySpaceVariants(key) {
   const out = new Set([key]);
+  if (key.includes(" ")) {
+    out.add(key.replace(/ /g, "_"));
+    out.add(key.replace(/ /g, "%20"));
+  }
+  if (key.includes("%20")) {
+    out.add(key.replace(/%20/g, " "));
+    out.add(key.replace(/%20/g, "_"));
+  }
+
   const parts = key.split("/");
   const last = parts[parts.length - 1];
   if (!last) return [...out];
@@ -97,7 +142,8 @@ async function serveFromR2(request, env, url) {
     return new Response("R2 binding SCHOOLS_R2 chưa cấu hình trong Worker.", { status: 503 });
   }
 
-  const candidates = expandR2KeyCandidates(url.pathname);
+  const pathname = normalizeR2Pathname(url.pathname);
+  const candidates = expandR2KeyCandidates(pathname);
   if (!candidates.length) {
     return new Response("Not Found", { status: 404, headers: r2CorsHeaders(request) });
   }
