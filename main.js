@@ -1,7 +1,7 @@
 // Shell only (index.html + main.js): pass ?item= / ?mode= / ?file= params.
 // H5 + SWF assets always loaded from R2 via CDN (default):
 //   H5:  ?item=folder&mode=html  → .../ubgx/h5/{item}/index.html
-//   SWF: ?mode=flash&file=game.swf → .../ubgx/game.swf
+//   SWF: ?mode=flash&file=game.swf → .../ubgx/swf/game.swf
 //   Also accepts broken links like ?mode=flash&game.swf (file name only as param).
 // Optional ?storage=github for testing H5 files from the repo (not for production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
@@ -10,8 +10,8 @@ const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 const R2_DOMAIN = "https://ubgx.me";
 const R2_BUCKET = "";
 
-/** SWF files at /ubgx/ level, H5 at /ubgx/h5/… — R2 key is just the filename */
-const R2_SWF_PREFIX = "ubgx";
+/** SWF keys under ubgx/swf/… on R2/CDN; H5 at ubgx/h5/… */
+const R2_SWF_PREFIX = "ubgx/swf";
 const R2_H5_PREFIX = "ubgx/h5";
 
 /** Default H5 from R2/CDN (shell can be GitHub Pages or cdn.ubgx.me). */
