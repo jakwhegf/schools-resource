@@ -1,15 +1,783 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schools resource</title>
-    <link rel="stylesheet" href="stylist.css?v=1">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>R2 Uploader</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f0f2f5; --surface: #ffffff; --surface2: #f7f8fa;
+    --border: #e2e6eb; --border-bright: #c8d0da;
+    --accent: #2563eb; --accent2: #3b82f6;
+    --text: #1a1d23; --muted: #6b7280;
+    --success: #16a34a; --error: #dc2626; --blue: #2563eb;
+  }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Inter', sans-serif; overflow: hidden; }
+
+  .app { display: grid; grid-template-columns: 260px 1fr; grid-template-rows: 56px 1fr; height: 100vh; }
+
+  header {
+    grid-column: 1/-1; display: flex; align-items: center; padding: 0 20px; gap: 10px;
+    border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.97);
+    backdrop-filter: blur(8px); z-index: 100;
+  }
+  .logo { font-size: 1rem; font-weight: 700; letter-spacing: -0.02em; }
+  .logo span { color: var(--accent); }
+  .logo-badge { font-family: 'JetBrains Mono', monospace; font-size: 0.6rem; background: rgba(37,99,235,0.1); color: var(--accent); padding: 2px 7px; border-radius: 20px; border: 1px solid rgba(37,99,235,0.25); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+  .status-pill { display: flex; align-items: center; gap: 6px; font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; color: var(--muted); background: var(--surface); border: 1px solid var(--border); padding: 4px 10px; border-radius: 20px; }
+  .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+  .dot.ok { background: var(--success); box-shadow: 0 0 5px rgba(22,163,74,0.4); }
+  .btn-icon { background: var(--surface); border: 1px solid var(--border-bright); color: var(--text); padding: 5px 12px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.78rem; font-weight: 600; transition: all 0.15s; }
+  .btn-icon:hover { border-color: var(--accent); color: var(--accent); }
+
+  aside { border-right: 1px solid var(--border); background: var(--surface); overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 0; }
+  .s-title { font-size: 0.6rem; font-weight: 700; letter-spacing: 0.12em; color: var(--muted); text-transform: uppercase; margin-bottom: 10px; }
+  .cfg-row { margin-bottom: 8px; }
+  .cfg-lbl { font-size: 0.6rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; margin-bottom: 2px; }
+  .cfg-val { font-family: 'JetBrains Mono', monospace; font-size: 0.72rem; background: var(--bg); border: 1px solid var(--border); padding: 5px 8px; border-radius: 5px; word-break: break-all; color: var(--text); }
+  .cfg-val.empty { color: var(--muted); font-style: italic; }
+  .divider { height: 1px; background: var(--border); margin: 12px 0; }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .stat-box { background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 8px; text-align: center; }
+  .stat-num { font-size: 1.2rem; font-weight: 700; color: var(--accent); }
+  .stat-lbl { font-size: 0.6rem; color: var(--muted); margin-top: 1px; }
+
+  .drop-zone { border: 2px dashed var(--border-bright); border-radius: 10px; padding: 16px 10px; text-align: center; cursor: pointer; transition: all 0.2s; background: var(--bg); position: relative; overflow: hidden; }
+  .drop-zone::before { content:''; position:absolute; inset:0; background: radial-gradient(ellipse at center, rgba(37,99,235,0.06) 0%, transparent 70%); opacity:0; transition:opacity 0.2s; }
+  .drop-zone.drag-over { border-color: var(--accent); }
+  .drop-zone.drag-over::before { opacity: 1; }
+  .drop-icon { font-size: 1.5rem; display: block; margin-bottom: 5px; transition: transform 0.15s; }
+  .drop-zone:hover .drop-icon, .drop-zone.drag-over .drop-icon { transform: translateY(-2px); }
+  .drop-title { font-size: 0.8rem; font-weight: 700; margin-bottom: 4px; }
+  .drop-hint { font-size: 0.68rem; color: var(--muted); }
+  .drop-hint span { color: var(--accent); cursor: pointer; }
+  .drop-hint span:hover { text-decoration: underline; }
+  #fileInput, #folderInput { display: none; }
+  .upload-dest { font-family: 'JetBrains Mono', monospace; font-size: 0.62rem; color: var(--muted); margin-top: 5px; padding: 3px 7px; background: var(--surface2); border-radius: 4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .upload-dest span { color: var(--accent); }
+
+  .queue-wrap { margin-top: 8px; }
+  .queue-header { display: flex; align-items: center; gap: 7px; padding: 6px 0 5px; font-size: 0.6rem; font-weight: 700; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+  .badge { background: var(--accent); color: #000; font-size: 0.58rem; font-weight: 700; padding: 1px 6px; border-radius: 20px; }
+  .queue-list { max-height: 240px; overflow-y: auto; display: flex; flex-direction: column; gap: 3px; }
+  .queue-item { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 7px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; animation: slideIn 0.12s ease; font-size: 0.75rem; }
+  @keyframes slideIn { from { opacity:0; transform:translateY(-3px); } to { opacity:1; transform:translateY(0); } }
+  .queue-item.uploading { border-color: var(--accent); }
+  .queue-item.done { border-color: rgba(34,197,94,0.3); }
+  .queue-item.error { border-color: rgba(239,68,68,0.3); }
+  .qi-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .qi-meta { font-size: 0.6rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .qi-status { font-family: 'JetBrains Mono', monospace; font-size: 0.65rem; text-align: right; white-space: nowrap; }
+  .qi-status.pending { color: var(--muted); }
+  .qi-status.uploading { color: var(--accent); }
+  .qi-status.done { color: var(--success); }
+  .qi-status.error { color: var(--error); }
+  .progress-wrap { grid-column: 1/-1; height: 2px; background: var(--border); border-radius: 1px; overflow: hidden; }
+  .progress-bar { height: 100%; background: var(--accent); }
+  .queue-actions { display: flex; gap: 5px; margin-top: 6px; }
+  .btn-upload { background: var(--accent); color: #000; border: none; padding: 8px 14px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.8rem; font-weight: 700; transition: all 0.15s; flex: 1; }
+  .btn-upload:hover { background: var(--accent2); box-shadow: 0 3px 12px rgba(37,99,235,0.25); }
+  .btn-upload:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+  .btn-sm { background: transparent; border: 1px solid var(--border-bright); color: var(--muted); padding: 7px 10px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.75rem; transition: all 0.15s; }
+  .btn-sm:hover { border-color: var(--error); color: var(--error); }
+  .btn-sm.secondary { border-color: var(--border-bright); color: var(--muted); }
+  .btn-sm.secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-sm.good:hover { border-color: var(--success); color: var(--success); }
+
+  .side-toolbar { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .btn-side { flex: 1 1 calc(50% - 3px); min-width: 0; background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 7px 8px; border-radius: 7px; cursor: pointer; font-size: 0.72rem; font-weight: 600; transition: all 0.12s; }
+  .btn-side:hover { border-color: var(--accent); color: var(--accent); }
+  .explorer { display: flex; flex-direction: column; overflow: hidden; background: var(--bg); }
+
+  .breadcrumb { display: flex; align-items: center; gap: 2px; padding: 9px 18px; border-bottom: 1px solid var(--border); background: var(--surface); font-family: 'JetBrains Mono', monospace; font-size: 0.73rem; flex-shrink: 0; overflow-x: auto; white-space: nowrap; }
+  .breadcrumb::-webkit-scrollbar { display: none; }
+  .bc-item { color: var(--muted); cursor: pointer; padding: 3px 6px; border-radius: 4px; transition: all 0.1s; display: flex; align-items: center; gap: 3px; }
+  .bc-item:hover { color: var(--text); background: var(--bg); }
+  .bc-item.active { color: var(--text); cursor: default; font-weight: 600; }
+  .bc-item.active:hover { background: transparent; }
+  .bc-sep { color: var(--border-bright); padding: 0 1px; }
+  .bc-actions { margin-left: auto; display: flex; gap: 5px; flex-shrink: 0; padding-left: 12px; }
+  .bc-btn { background: var(--bg); border: 1px solid var(--border); color: var(--muted); padding: 4px 10px; border-radius: 5px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 600; transition: all 0.1s; white-space: nowrap; }
+  .bc-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .bc-btn.danger:hover { border-color: var(--error); color: var(--error); }
+
+  .file-grid { flex: 1; overflow-y: auto; padding: 16px 18px; }
+  .file-grid-inner { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 9px; }
+  .grid-item { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 10px 10px; cursor: pointer; transition: all 0.12s; position: relative; text-align: center; animation: fadeIn 0.12s ease; user-select: none; }
+  @keyframes fadeIn { from { opacity:0; transform:scale(0.97); } to { opacity:1; transform:scale(1); } }
+  .grid-item:hover { border-color: var(--border-bright); background: var(--surface2); transform: translateY(-1px); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .grid-item.folder:hover { border-color: rgba(37,99,235,0.4); }
+  .gi-icon { font-size: 2rem; margin-bottom: 7px; display: block; }
+  .gi-name { font-size: 0.7rem; font-weight: 600; word-break: break-all; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.35; }
+  .gi-meta { font-size: 0.6rem; color: var(--muted); margin-top: 3px; font-family: 'JetBrains Mono', monospace; }
+  .gi-actions { position: absolute; top: 5px; right: 5px; display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
+  .grid-item:hover .gi-actions { opacity: 1; }
+  .gi-btn { background: rgba(255,255,255,0.92); border: 1px solid var(--border-bright); cursor: pointer; padding: 3px 5px; border-radius: 4px; font-size: 0.62rem; transition: all 0.1s; backdrop-filter: blur(4px); }
+  .gi-btn.copy { color: var(--blue); }
+  .gi-btn.copy:hover { background: rgba(96,165,250,0.2); }
+  .gi-btn.del { color: var(--error); }
+  .gi-btn.del:hover { background: rgba(239,68,68,0.2); }
+  .empty-grid { grid-column: 1/-1; text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-grid .eg-icon { font-size: 2.8rem; display: block; margin-bottom: 10px; opacity: 0.35; }
+  .loading-grid { grid-column: 1/-1; text-align: center; padding: 40px; color: var(--muted); font-family: 'JetBrains Mono', monospace; font-size: 0.75rem; }
+
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(15,23,42,0.5); backdrop-filter: blur(4px); z-index: 200; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border: 1px solid var(--border-bright); border-radius: 14px; padding: 24px; width: 440px; max-width: 92vw; animation: modalIn 0.16s ease; }
+  .confirm-box { background: var(--surface); border: 1px solid var(--border-bright); border-radius: 14px; padding: 22px; width: 360px; max-width: 92vw; animation: modalIn 0.16s ease; }
+  @keyframes modalIn { from { opacity:0; transform:scale(0.96) translateY(5px); } to { opacity:1; transform:scale(1) translateY(0); } }
+  .modal h2 { font-size: 1rem; font-weight: 700; margin-bottom: 16px; }
+  .confirm-box h3 { font-size: 0.95rem; font-weight: 700; margin-bottom: 8px; }
+  .confirm-box p { font-size: 0.78rem; color: var(--muted); margin-bottom: 18px; line-height: 1.55; }
+  .confirm-box p strong { color: var(--text); font-family: 'JetBrains Mono', monospace; font-size: 0.7rem; word-break: break-all; }
+  .form-group { margin-bottom: 11px; }
+  .form-label { font-size: 0.6rem; color: var(--muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; display: block; font-family: 'JetBrains Mono', monospace; }
+  .form-input { width: 100%; background: var(--bg); border: 1px solid var(--border-bright); color: var(--text); padding: 8px 10px; border-radius: 7px; font-family: 'JetBrains Mono', monospace; font-size: 0.78rem; outline: none; transition: border-color 0.15s; }
+  .form-input:focus { border-color: var(--accent); }
+  .form-hint { font-size: 0.6rem; color: var(--muted); margin-top: 3px; }
+  .modal-btns, .confirm-btns { display: flex; justify-content: flex-end; gap: 7px; margin-top: 16px; }
+  .btn-save { background: var(--accent); color: #000; border: none; padding: 8px 18px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.8rem; transition: background 0.15s; }
+  .btn-save:hover { background: var(--accent2); }
+  .btn-cancel { background: transparent; border: 1px solid var(--border-bright); color: var(--muted); padding: 7px 14px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 0.78rem; transition: all 0.15s; }
+  .btn-cancel:hover { border-color: var(--text); color: var(--text); }
+  .btn-del-confirm { background: var(--error); color: #fff; border: none; padding: 8px 16px; border-radius: 7px; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 700; font-size: 0.78rem; transition: opacity 0.15s; }
+  .btn-del-confirm:hover { opacity: 0.85; }
+
+  .toast { position: fixed; bottom: 18px; right: 18px; background: var(--surface); border: 1px solid var(--border-bright); padding: 10px 15px; border-radius: 9px; font-size: 0.78rem; z-index: 400; transform: translateY(50px); opacity: 0; transition: all 0.22s cubic-bezier(0.4,0,0.2,1); pointer-events: none; }
+  .toast.show { transform: translateY(0); opacity: 1; }
+  .toast.success { border-color: rgba(34,197,94,0.4); }
+  .toast.error { border-color: rgba(239,68,68,0.4); }
+
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border-bright); border-radius: 2px; }
+</style>
 </head>
 <body>
-    <!-- Nhúng GitHub Pages hoặc cdn.ubgx.me/index.html?item=…&mode=html | SWF: &mode=flash&file=ten.swf — ?v= tải lại main.js -->
-    <div id="schools-resource-container"></div>
-    
-    <script src="main.js?v=12"></script>
+<div class="app">
+
+<header>
+  <div class="logo">R2 <span>Uploader</span></div>
+  <div class="logo-badge">Cloudflare R2</div>
+  <div class="header-right">
+    <div class="status-pill">
+      <div class="dot" id="statusDot"></div>
+      <span id="statusText">Not connected</span>
+    </div>
+    <button class="btn-icon" onclick="openSettings()">⚙ Settings</button>
+  </div>
+</header>
+
+<aside>
+  <div class="s-title">Configuration</div>
+  <div class="cfg-row"><div class="cfg-lbl">BUCKET</div><div class="cfg-val empty" id="cfgBucket">—</div></div>
+  <div class="cfg-row"><div class="cfg-lbl">PREFIX</div><div class="cfg-val empty" id="cfgPrefix">—</div></div>
+  <div class="cfg-row"><div class="cfg-lbl">PUBLIC URL</div><div class="cfg-val empty" id="cfgPublicUrl">—</div></div>
+
+  <div class="divider"></div>
+  <div class="s-title">Stats</div>
+  <div class="stats-grid">
+    <div class="stat-box"><div class="stat-num" id="statFiles">—</div><div class="stat-lbl">Files</div></div>
+    <div class="stat-box"><div class="stat-num" id="statSize">—</div><div class="stat-lbl">Total</div></div>
+  </div>
+
+  <div class="divider"></div>
+  <div class="s-title">Điều khiển</div>
+  <div class="side-toolbar">
+    <button type="button" class="btn-side" onclick="loadExplorer()" title="Tải lại danh sách">↻ Làm mới</button>
+    <button type="button" class="btn-side" onclick="openSettings()">⚙ Cài đặt</button>
+    <button type="button" class="btn-side" id="btnCopyEndpoint" onclick="copyR2Endpoint()" title="Sao chép endpoint R2">📋 Endpoint</button>
+    <button type="button" class="btn-side" onclick="copyUploadDest()" title="Sao chép đường dẫn upload hiện tại">📌 Đích upload</button>
+  </div>
+  <div class="cfg-row" style="margin-top:4px"><div class="cfg-lbl">Hàng đợi</div><div class="cfg-val" id="queueSummary">0 chờ</div></div>
+
+  <div class="divider"></div>
+  <div class="s-title">Upload → thư mục hiện tại</div>
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" multiple>
+    <input type="file" id="folderInput" webkitdirectory multiple>
+    <span class="drop-icon">📂</span>
+    <div class="drop-title">Drop here</div>
+    <div class="drop-hint">
+      <span onclick="document.getElementById('fileInput').click()">files</span>
+      &nbsp;·&nbsp;
+      <span onclick="document.getElementById('folderInput').click()">📁 folder</span>
+    </div>
+  </div>
+  <div class="upload-dest">→ <span id="uploadDestLabel">/</span></div>
+
+  <div class="queue-wrap" id="queueSection" style="display:none">
+    <div class="queue-header">Queue <span class="badge" id="queueBadge">0</span></div>
+    <div class="queue-list" id="queueList"></div>
+    <div class="queue-actions" style="flex-wrap:wrap">
+      <button class="btn-upload" id="btnUpload" onclick="startUpload()">↑ Upload tất cả</button>
+    </div>
+    <div class="queue-actions" style="margin-top:4px">
+      <button type="button" class="btn-sm secondary" onclick="removeDoneFromQueue()">Xóa đã xong</button>
+      <button type="button" class="btn-sm good" onclick="retryFailedUploads()">Thử lại lỗi</button>
+      <button type="button" class="btn-sm" onclick="clearQueuePending()">Xóa hàng đợi</button>
+    </div>
+  </div>
+</aside>
+
+<div class="explorer" id="explorerEl">
+  <div class="breadcrumb" id="breadcrumb">
+    <div class="bc-item active" onclick="navigateTo('')">🪣 bucket</div>
+    <div class="bc-actions">
+      <button class="bc-btn" onclick="loadExplorer()">↺</button>
+      <button class="bc-btn danger" id="btnDelFolder" style="display:none" onclick="deleteCurrentFolder()">🗑 Delete folder</button>
+    </div>
+  </div>
+  <div class="file-grid">
+    <div class="file-grid-inner" id="fileGridInner">
+      <div class="loading-grid">Loading…</div>
+    </div>
+  </div>
+</div>
+
+</div>
+
+<!-- Settings -->
+<div class="modal-overlay" id="settingsModal">
+  <div class="modal">
+    <h2>⚙ R2 Configuration</h2>
+    <div class="form-group"><label class="form-label">Account ID</label><input class="form-input" id="inputAccountId" placeholder="abc123..."><div class="form-hint">Cloudflare Dashboard → R2 → Account details</div></div>
+    <div class="form-group"><label class="form-label">Bucket Name</label><input class="form-input" id="inputBucket" placeholder="my-bucket"></div>
+    <div class="form-group"><label class="form-label">Access Key ID</label><input class="form-input" id="inputAccessKeyId" placeholder="R2 API Token Access Key"></div>
+    <div class="form-group"><label class="form-label">Secret Access Key</label><input class="form-input" type="password" id="inputSecretAccessKey" placeholder="••••••••"></div>
+    <div class="form-group"><label class="form-label">Prefix / Root folder (optional)</label><input class="form-input" id="inputPrefix" placeholder="uploads/"><div class="form-hint">Explorer starts from this folder</div></div>
+    <div class="form-group"><label class="form-label">Public URL (optional)</label><input class="form-input" id="inputPublicUrl" placeholder="https://cdn.yoursite.com"></div>
+    <div class="modal-btns"><button class="btn-cancel" onclick="closeSettings()">Cancel</button><button class="btn-save" onclick="saveSettings()">Save & Connect</button></div>
+  </div>
+</div>
+
+<!-- Confirm -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="confirm-box">
+    <h3 id="confirmTitle">Confirm Delete</h3>
+    <p id="confirmMsg"></p>
+    <div class="confirm-btns">
+      <button class="btn-cancel" onclick="closeConfirm()">Cancel</button>
+      <button class="btn-del-confirm" id="confirmOkBtn">Delete</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let fileQueue = [];
+let configured = false;
+let currentPath = '';
+let bucketPrefix = '';
+let allFiles = [];
+
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+const formatSize = b => b<1024?b+'B':b<1024**2?(b/1024).toFixed(1)+'KB':b<1024**3?(b/1024**2).toFixed(1)+'MB':(b/1024**3).toFixed(2)+'GB';
+function getIcon(name, isFolder) {
+  if (isFolder) return '📁';
+  const e = (name.split('.').pop()||'').toLowerCase();
+  return {swf:'🎮',zip:'🗜',rar:'🗜','7z':'🗜',png:'🖼',jpg:'🖼',jpeg:'🖼',webp:'🖼',gif:'🖼',svg:'🖼',mp4:'🎬',webm:'🎬',mp3:'🎵',wav:'🎵',js:'📜',css:'🎨',html:'🌐',json:'📋',pdf:'📄',txt:'📝'}[e] || '📄';
+}
+
+const fullPath = rel => (bucketPrefix ? bucketPrefix.replace(/\/$/,'')+'/' : '') + rel;
+
+let apiAccountId = '';
+
+function normalizeUploadRelativePath(currentPath, relativePath) {
+  let rel = String(relativePath).replace(/\\/g, '/').replace(/^\/+/, '');
+  const cur = String(currentPath).replace(/\\/g, '/').replace(/^\/+/, '').replace(/\/+$/, '');
+  if (!cur) return rel;
+  const curSegs = cur.split('/').filter(Boolean);
+  const relSegs = rel.split('/').filter(Boolean);
+  if (!relSegs.length) return rel;
+  let match = 0;
+  for (let i = 0; i < curSegs.length && i < relSegs.length; i++) {
+    if (curSegs[i] !== relSegs[i]) break;
+    match++;
+  }
+  if (match === curSegs.length) {
+    const rest = relSegs.slice(match).join('/');
+    return rest || relSegs[relSegs.length - 1] || rel;
+  }
+  if (relSegs[0] === curSegs[curSegs.length - 1]) {
+    return relSegs.slice(1).join('/');
+  }
+  return rel;
+}
+
+function stripRepeatedBucketPrefix(rel) {
+  let r = String(rel).replace(/\\/g, '/').replace(/^\/+/, '');
+  const p = (bucketPrefix || '').replace(/\/$/, '');
+  if (!p) return r;
+  const ps = p + '/';
+  while (r === p || r.startsWith(ps)) {
+    if (r === p) return '';
+    r = r.slice(ps.length).replace(/^\/+/, '');
+  }
+  return r;
+}
+
+function buildDestKey(item) {
+  let rel = normalizeUploadRelativePath(currentPath, item.relativePath);
+  rel = stripRepeatedBucketPrefix(rel);
+  return fullPath(currentPath + rel);
+}
+
+async function loadExplorer() {
+  document.getElementById('fileGridInner').innerHTML = '<div class="loading-grid">Loading…</div>';
+  try {
+    const res = await fetch('/api/files');
+    const data = await res.json();
+    if (!Array.isArray(data)) return;
+    allFiles = data;
+    document.getElementById('statFiles').textContent = allFiles.length;
+    document.getElementById('statSize').textContent = formatSize(allFiles.reduce((s,f)=>s+f.size,0));
+    renderExplorer();
+  } catch(e) {
+    document.getElementById('fileGridInner').innerHTML = '<div class="loading-grid">Error — check connection</div>';
+  }
+}
+
+function renderExplorer() {
+  updateBreadcrumb();
+  updateUploadDest();
+  const inner = document.getElementById('fileGridInner');
+  const curFull = fullPath(currentPath);
+
+  const folders = new Set();
+  const files = [];
+
+  allFiles.forEach(f => {
+    if (!f.key.startsWith(curFull)) return;
+    const rel = f.key.slice(curFull.length);
+    if (!rel) return;
+    const slash = rel.indexOf('/');
+    if (slash === -1) files.push(f);
+    else if (slash > 0) folders.add(rel.slice(0, slash));
+  });
+
+  let html = '';
+
+  [...folders].sort().forEach(folder => {
+    const fKey = curFull + folder + '/';
+    const count = allFiles.filter(f => f.key.startsWith(fKey)).length;
+    html += `<div class="grid-item folder" onclick='navigateTo(${JSON.stringify(currentPath+folder+"/")})' title="${esc(folder)}">
+      <div class="gi-actions">
+        <button type="button" class="gi-btn del" onclick='event.stopPropagation();confirmDel("folder", ${JSON.stringify(fKey)})' title="Xóa">🗑</button>
+      </div>
+      <span class="gi-icon">📁</span>
+      <div class="gi-name">${esc(folder)}</div>
+      <div class="gi-meta">${count} file${count!==1?'s':''}</div>
+    </div>`;
+  });
+
+  [...files].sort((a,b)=>a.key.localeCompare(b.key)).forEach(f => {
+    const name = f.key.split('/').pop();
+    html += `<div class="grid-item" title="${esc(name)}">
+      <div class="gi-actions">
+        ${f.url?`<button type="button" class="gi-btn copy" onclick='event.stopPropagation();copyUrl(${JSON.stringify(f.url)})' title="Copy URL">🔗</button>`:''}
+        <button type="button" class="gi-btn del" onclick='event.stopPropagation();confirmDel("file", ${JSON.stringify(f.key)})' title="Xóa">✕</button>
+      </div>
+      <span class="gi-icon">${getIcon(name,false)}</span>
+      <div class="gi-name">${esc(name)}</div>
+      <div class="gi-meta">${formatSize(f.size)}</div>
+    </div>`;
+  });
+
+  if (!html) html = `<div class="empty-grid"><span class="eg-icon">📭</span>Empty folder<br><small style="color:var(--muted);margin-top:6px;display:block">Drop files in the left panel to upload here</small></div>`;
+  inner.innerHTML = html;
+  document.getElementById('btnDelFolder').style.display = currentPath ? 'block' : 'none';
+}
+
+function navigateTo(path) {
+  currentPath = path;
+  renderExplorer();
+}
+
+function updateBreadcrumb() {
+  const bc = document.getElementById('breadcrumb');
+  const actions = bc.querySelector('.bc-actions');
+  [...bc.querySelectorAll('.bc-item, .bc-sep')].forEach(el => el.remove());
+
+  const segments = [{ label: '\u{1F9FA} bucket', navPath: '' }];
+  if (currentPath) {
+    const parts = currentPath.replace(/\/$/, '').split('/').filter(Boolean);
+    let built = '';
+    parts.forEach(part => { built += part + '/'; segments.push({ label: part, navPath: built }); });
+  }
+
+  segments.forEach((seg, i) => {
+    const isLast = i === segments.length - 1;
+    if (i > 0) {
+      const sep = document.createElement('span');
+      sep.className = 'bc-sep'; sep.textContent = '/';
+      bc.insertBefore(sep, actions);
+    }
+    const el = document.createElement('div');
+    el.className = 'bc-item' + (isLast ? ' active' : '');
+    el.textContent = seg.label;
+    if (!isLast) {
+      const p = seg.navPath;
+      el.addEventListener('click', () => navigateTo(p));
+    }
+    bc.insertBefore(el, actions);
+  });
+}
+
+function updateUploadDest() {
+  const dest = fullPath(currentPath) || '/';
+  document.getElementById('uploadDestLabel').textContent = dest;
+}
+
+function deleteCurrentFolder() {
+  if (!currentPath) return;
+  const p = fullPath(currentPath).replace(/\/?$/, '/');
+  confirmDel('folder', p);
+}
+
+const dropZone = document.getElementById('dropZone');
+const explorerEl = document.getElementById('explorerEl');
+
+function readAllDirEntries(dirReader) {
+  return new Promise((resolve) => {
+    const acc = [];
+    const read = () => {
+      dirReader.readEntries((batch) => {
+        if (!batch.length) {
+          resolve(acc);
+          return;
+        }
+        acc.push(...batch);
+        read();
+      });
+    };
+    read();
+  });
+}
+
+async function handleDrop(e) {
+  const items = [...e.dataTransfer.items];
+  const entries = [];
+
+  async function traverse(entry, path = '') {
+    if (entry.isFile) {
+      await new Promise((r) =>
+        entry.file((f) => {
+          entries.push({ file: f, relativePath: (path + f.name).replace(/\\/g, '/') });
+          r();
+        })
+      );
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const children = await readAllDirEntries(reader);
+      const base = (path + entry.name + '/').replace(/\\/g, '/');
+      for (const ch of children) await traverse(ch, base);
+    }
+  }
+
+  for (const item of items) {
+    const fsEntry = item.webkitGetAsEntry();
+    if (fsEntry) await traverse(fsEntry, '');
+  }
+  addToQueue(entries);
+}
+
+[dropZone, explorerEl].forEach(el => {
+  el.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+  el.addEventListener('dragleave', e => { if (!dropZone.contains(e.relatedTarget) && !explorerEl.contains(e.relatedTarget)) dropZone.classList.remove('drag-over'); });
+  el.addEventListener('drop', async e => { e.preventDefault(); dropZone.classList.remove('drag-over'); await handleDrop(e); });
+});
+
+document.getElementById('fileInput').addEventListener('change', function() {
+  addToQueue([...this.files].map(f=>({file:f, relativePath:f.name}))); this.value='';
+});
+document.getElementById('folderInput').addEventListener('change', function() {
+  addToQueue([...this.files].map(f => ({
+    file: f,
+    relativePath: (f.webkitRelativePath || f.name).replace(/\\/g, '/'),
+  })));
+  this.value = '';
+});
+
+function queueDedupeKey(file, relativePath) {
+  return relativePath + '\0' + file.size + '\0' + (file.lastModified || 0);
+}
+
+function addToQueue(entries) {
+  entries.forEach(({ file, relativePath }) => {
+    const rp = String(relativePath).replace(/\\/g, '/');
+    const k = queueDedupeKey(file, rp);
+    if (fileQueue.find((q) => queueDedupeKey(q.file, q.relativePath) === k)) return;
+    fileQueue.push({ file, relativePath: rp, status: 'pending', id: Date.now() + Math.random() });
+  });
+  renderQueue();
+}
+
+function renderQueue() {
+  const qs = document.getElementById('queueSection');
+  const ql = document.getElementById('queueList');
+  const pending = fileQueue.filter(f => f.status === 'pending').length;
+  const err = fileQueue.filter(f => f.status === 'error').length;
+  const up = fileQueue.filter(f => f.status === 'uploading').length;
+  const sumEl = document.getElementById('queueSummary');
+  if (sumEl) sumEl.textContent = `${pending} chờ · ${up} đang tải · ${err} lỗi`;
+  const visible = fileQueue.filter(f => f.status !== 'done');
+  if (!fileQueue.length) { qs.style.display='none'; return; }
+  qs.style.display='block';
+  document.getElementById('queueBadge').textContent = visible.length || '✓';
+  ql.innerHTML = visible.map(item => {
+    const pct = item.progress || 0;
+    return `<div class="queue-item ${item.status}" id="qi-${item.id}">
+      <span style="font-size:0.9rem;text-align:center">${getIcon(item.file.name,false)}</span>
+      <div style="min-width:0;flex:1">
+        <div class="qi-name" title="${esc(item.relativePath)}">${esc(item.relativePath)}</div>
+        <div class="qi-meta">${formatSize(item.file.size)}${item.speed?' · '+item.speed:''}</div>
+        ${item.status==='uploading'?`<div class="progress-wrap"><div class="progress-bar" id="pb-${item.id}" style="width:${pct}%"></div></div>`:''}
+      </div>
+      <div class="qi-status ${item.status}">${item.status==='pending'?'·':item.status==='uploading'?pct+'%':'✗'}</div>
+    </div>`;
+  }).join('');
+}
+
+function updateProgress(item) {
+  const pct = item.progress || 0;
+  const statusEl = document.querySelector(`#qi-${item.id} .qi-status`);
+  if (statusEl) statusEl.textContent = pct + '%';
+  const barEl = document.getElementById('pb-' + item.id);
+  if (barEl) barEl.style.width = pct + '%';
+  const metaEl = document.querySelector(`#qi-${item.id} .qi-meta`);
+  if (metaEl) metaEl.textContent = formatSize(item.file.size) + (item.speed ? ' · ' + item.speed : '');
+}
+
+function clearQueuePending() {
+  fileQueue = fileQueue.filter(f => f.status === 'uploading');
+  renderQueue();
+}
+
+function removeDoneFromQueue() {
+  fileQueue = fileQueue.filter(f => f.status !== 'done');
+  renderQueue();
+}
+
+function retryFailedUploads() {
+  let n = 0;
+  fileQueue.forEach((f) => {
+    if (f.status === 'error') {
+      f.status = 'pending';
+      f.progress = 0;
+      f.speed = '';
+      n++;
+    }
+  });
+  renderQueue();
+  if (n) showToast(`Đã đưa ${n} file lỗi vào lại hàng đợi`, 'success');
+  else showToast('Không có file lỗi', '');
+}
+
+function uploadWithProgress(item) {
+  return new Promise(resolve => {
+    const destKey = buildDestKey(item);
+    const fd = new FormData();
+    fd.append('file', item.file);
+    fd.append('relativePath', destKey);
+
+    const xhr = new XMLHttpRequest();
+    const startTime = Date.now();
+
+    xhr.upload.addEventListener('progress', e => {
+      if (!e.lengthComputable) return;
+      const pct = Math.round((e.loaded / e.total) * 100);
+      const elapsed = (Date.now() - startTime) / 1000;
+      const speed = elapsed > 0 ? formatSize(e.loaded / elapsed) + '/s' : '';
+      item.progress = pct;
+      item.speed = speed;
+      updateProgress(item);
+    });
+
+    xhr.onload = () => {
+      try {
+        const results = JSON.parse(xhr.responseText);
+        item.status = results[0]?.ok ? 'done' : 'error';
+      } catch(e) { item.status = 'error'; }
+      resolve();
+    };
+    xhr.onerror = () => { item.status = 'error'; resolve(); };
+
+    xhr.open('POST', '/api/upload');
+    xhr.send(fd);
+  });
+}
+
+const UPLOAD_CONCURRENCY = 3;
+
+async function startUpload() {
+  if (!configured) { showToast('⚠ Cấu hình R2 trước', 'error'); openSettings(); return; }
+  let pending = fileQueue.filter(f => f.status === 'pending');
+  if (!pending.length) return;
+  document.getElementById('btnUpload').disabled = true;
+
+  while (pending.length) {
+    const batch = pending.slice(0, UPLOAD_CONCURRENCY);
+    pending = pending.slice(UPLOAD_CONCURRENCY);
+    batch.forEach((item) => {
+      item.status = 'uploading';
+      item.progress = 0;
+      item.speed = '';
+    });
+    renderQueue();
+    await Promise.all(
+      batch.map(async (item) => {
+        await uploadWithProgress(item);
+        if (item.status === 'done') {
+          const el = document.getElementById('qi-' + item.id);
+          if (el) {
+            el.style.transition = 'opacity 0.4s';
+            el.style.opacity = '0';
+          }
+        }
+      })
+    );
+    renderQueue();
+  }
+
+  await new Promise((r) => setTimeout(r, 200));
+  fileQueue = fileQueue.filter(f => f.status !== 'done');
+  document.getElementById('btnUpload').disabled = false;
+  const errors = fileQueue.filter(f => f.status === 'error').length;
+  if (errors) showToast(`✗ ${errors} file lỗi`, 'error');
+  else showToast('✓ Đã upload xong', 'success');
+  renderQueue();
+  loadExplorer();
+}
+
+function confirmDel(type, key) {
+  const isFolder = type === 'folder';
+  const btn = document.getElementById('confirmOkBtn');
+  document.getElementById('confirmTitle').textContent = isFolder ? '🗑 Delete Folder' : '🗑 Delete File';
+  document.getElementById('confirmMsg').innerHTML = isFolder
+    ? `Delete folder <strong>${esc(key)}</strong> and all files inside?<br>This cannot be undone.`
+    : `Delete <strong>${esc(key)}</strong>?<br>This cannot be undone.`;
+  btn.disabled = false;
+  btn.onclick = async () => {
+    if (btn.disabled) return;
+    btn.disabled = true;
+    closeConfirm();
+    try {
+      if (isFolder) await deleteFolder(key);
+      else await deleteFile(key);
+    } catch (e) {
+      showToast('✗ ' + (e.message || 'Lỗi'), 'error');
+      loadExplorer();
+    } finally {
+      btn.disabled = false;
+    }
+  };
+  document.getElementById('confirmModal').classList.add('open');
+}
+function closeConfirm() { document.getElementById('confirmModal').classList.remove('open'); }
+
+async function deleteFile(key) {
+  const res = await fetch('/api/files/'+encodeURIComponent(key), {method:'DELETE'});
+  let data = {};
+  try { data = await res.json(); } catch (_) {}
+  if (!res.ok) {
+    showToast('✗ ' + (data.error || res.statusText || 'Xóa thất bại'), 'error');
+    loadExplorer();
+    return;
+  }
+  showToast('🗑 Deleted','success');
+  loadExplorer();
+}
+
+async function deleteFolder(prefix) {
+  const res = await fetch('/api/folder', {method:'DELETE', headers:{'Content-Type':'application/json'}, body:JSON.stringify({prefix})});
+  let d = {};
+  try { d = await res.json(); } catch (_) {}
+  if (!res.ok || d.ok !== true) {
+    showToast('✗ ' + (d.error || res.statusText || 'Xóa thất bại'), 'error');
+    loadExplorer();
+    return;
+  }
+  const base = bucketPrefix ? bucketPrefix.replace(/\/$/,'')+'/' : '';
+  if ((base+currentPath) === prefix || (base+currentPath).startsWith(prefix)) {
+    const rel = prefix.slice(base.length);
+    const parts = rel.replace(/\/$/,'').split('/'); parts.pop();
+    currentPath = parts.length ? parts.join('/')+'/' : '';
+  }
+  const n = d.deleted|0;
+  showToast(n ? `🗑 Deleted ${n} file(s)` : '🗑 Đã xóa thư mục', 'success');
+  loadExplorer();
+}
+
+function openSettings() {
+  fetch('/api/config').then(r=>r.json()).then(d => {
+    if (d.config) {
+      document.getElementById('inputAccountId').value = d.config.accountId||'';
+      document.getElementById('inputBucket').value = d.config.bucket||'';
+      document.getElementById('inputPrefix').value = d.config.prefix||'';
+      document.getElementById('inputPublicUrl').value = d.config.publicUrl||'';
+    }
+  });
+  document.getElementById('settingsModal').classList.add('open');
+}
+function closeSettings() { document.getElementById('settingsModal').classList.remove('open'); }
+async function saveSettings() {
+  const cfg = {
+    accountId: document.getElementById('inputAccountId').value.trim(),
+    bucket: document.getElementById('inputBucket').value.trim(),
+    accessKeyId: document.getElementById('inputAccessKeyId').value.trim(),
+    secretAccessKey: document.getElementById('inputSecretAccessKey').value.trim(),
+    prefix: document.getElementById('inputPrefix').value.trim(),
+    publicUrl: document.getElementById('inputPublicUrl').value.trim(),
+  };
+  if (!cfg.accountId||!cfg.bucket||!cfg.accessKeyId||!cfg.secretAccessKey) { showToast('⚠ Fill required fields','error'); return; }
+  await fetch('/api/config',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(cfg)});
+  closeSettings(); checkConfig(); currentPath=''; showToast('✓ Saved','success'); loadExplorer();
+}
+
+function copyR2Endpoint() {
+  if (!apiAccountId) {
+    showToast('Chưa kết nối', 'error');
+    return;
+  }
+  const u = `https://${apiAccountId}.r2.cloudflarestorage.com`;
+  navigator.clipboard.writeText(u).then(() => showToast('Đã copy endpoint R2', 'success'));
+}
+
+function copyUploadDest() {
+  const text = fullPath(currentPath) || (bucketPrefix ? bucketPrefix.replace(/\/$/, '') + '/' : '/');
+  navigator.clipboard.writeText(text).then(() => showToast('Đã copy đích upload', 'success'));
+}
+
+function checkConfig() {
+  fetch('/api/config').then(r=>r.json()).then(d => {
+    configured = d.configured;
+    bucketPrefix = d.config?.prefix || '';
+    apiAccountId = d.config?.accountId || '';
+    document.getElementById('statusDot').className = 'dot'+(configured?' ok':'');
+    document.getElementById('statusText').textContent = configured ? d.config.bucket : 'Not connected';
+    const sv = (id,val) => { const el=document.getElementById(id); el.textContent=val||'—'; el.className='cfg-val'+(val?'':' empty'); };
+    if (d.config) { sv('cfgBucket',d.config.bucket); sv('cfgPrefix',d.config.prefix||'(root)'); sv('cfgPublicUrl',d.config.publicUrl); }
+    updateUploadDest();
+  });
+}
+
+let _tt;
+function showToast(msg, type='') {
+  const t = document.getElementById('toast');
+  t.textContent=msg; t.className='toast show '+type;
+  clearTimeout(_tt); _tt=setTimeout(()=>t.className='toast',3000);
+}
+function copyUrl(url) { navigator.clipboard.writeText(url).then(()=>showToast('🔗 URL copied!','success')); }
+
+checkConfig();
+loadExplorer();
+setInterval(loadExplorer, 15000);
+</script>
 </body>
 </html>

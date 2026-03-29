@@ -1,24 +1,22 @@
-// GitHub Pages chỉ host shell (index.html + main.js): truyền ?item= / ?mode= / ?file=.
-// Game H5 + SWF thực tế luôn lấy từ R2 qua CDN (mặc định):
-//   H5: ?item=folder&mode=html → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
-//   Worker chèn <base href="…/ubgx/h5/{item}/"> vào index.html để đường dẫn tương đối (data/, assets/) đúng.
-//   Nếu game vẫn lỗi: kiểm tra chỗ dùng đường dẫn tuyệt đối kiểu "/file.json" (sẽ gọi nhầm gốc host, phải đổi thành tương đối hoặc full URL trong /ubgx/h5/...).
-//   SWF: ?mode=flash&file=game.swf → …/ubgx/…/game.swf
-// Tùy chọn ?storage=github chỉ khi test file H5 tạm trên repo (không dùng cho production).
+// Shell only (index.html + main.js): pass ?item= / ?mode= / ?file= params.
+// H5 + SWF assets always loaded from R2 via CDN (default):
+//   H5:  ?item=folder&mode=html  → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
+//   SWF: ?mode=flash&file=game.swf → .../ubgx/.../game.swf
+// Optional ?storage=github for testing H5 files from the repo (not for production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
-// SWF: R2 qua CDN (Worker /ubgx/*). Nếu dùng endpoint S3 API, điền R2_BUCKET.
+// SWF: R2 via CDN (Worker /ubgx/*). Set R2_BUCKET if using S3 API endpoint.
 const R2_DOMAIN = "https://cdn.ubgx.me";
 const R2_BUCKET = "";
 
-/** .swf cùng cấp URL /ubgx/ với /ubgx/h5/… — key R2 chỉ là tên file .swf */
+/** SWF files at /ubgx/ level, H5 at /ubgx/h5/… — R2 key is just the filename */
 const R2_SWF_PREFIX = "ubgx";
 const R2_H5_PREFIX = "ubgx/h5";
 
-/** Mặc định H5 từ R2/CDN (shell có thể là GitHub Pages hoặc cdn.ubgx.me). */
+/** Default H5 from R2/CDN (shell can be GitHub Pages or cdn.ubgx.me). */
 const H5_DEFAULT_STORAGE = "r2";
 
-/** r2 | github — iframe H5 */
+/** r2 | github — H5 iframe source */
 function resolveH5IframeSrc(resourceId, urlParams) {
   const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
     .trim()
@@ -30,7 +28,7 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
 }
 
-const RUFFLE_SCRIPT = "https://unpkg.com/@ruffle-rs/ruffle";
+const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@latest/ruffle.min.js";
 
 function parseFlexibleQuery(raw) {
   const s = String(raw || "")
@@ -40,7 +38,7 @@ function parseFlexibleQuery(raw) {
   return new URLSearchParams(s);
 }
 
-/** Google Sites: ?query bị đôi hoặc mất → dùng hash */
+/** Google Sites: ?query may be duplicated or lost → fallback to hash */
 function bootstrapUrlParams() {
   const search = parseFlexibleQuery(window.location.search);
   if ([...search.keys()].length > 0) return search;
@@ -64,7 +62,7 @@ function r2PublicUrl(relativeKey) {
   return `${base}/${bucketSeg}${encodedPath}`;
 }
 
-/** Trả về "h5" | "swf" từ mode/type mới hoặc cũ. */
+/** Returns "h5" | "swf" from mode/type param. */
 function resolvePlaybackKind(urlParams) {
   const raw = (
     urlParams.get("mode") ||
@@ -78,7 +76,7 @@ function resolvePlaybackKind(urlParams) {
   return "h5";
 }
 
-/** item → slug → id; với SWF có thể chỉ truyền file=ten.swf (suy stem làm item). */
+/** item → slug → id; for SWF can also pass file=name.swf (stem becomes item). */
 function resolveResourceId(urlParams) {
   let v =
     urlParams.get("item") ||
@@ -100,7 +98,7 @@ function resolveResourceId(urlParams) {
       v = decodeURIComponent(v.replace(/\+/g, " "));
     }
   } catch {
-    /* giữ nguyên */
+    /* keep as-is */
   }
   return v;
 }
@@ -129,7 +127,7 @@ function loadRuffleScript() {
     s.src = RUFFLE_SCRIPT;
     s.async = true;
     s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Không tải được Ruffle (cần để phát SWF)."));
+    s.onerror = () => reject(new Error("Failed to load Ruffle player."));
     document.head.appendChild(s);
   });
 }
@@ -140,7 +138,7 @@ async function ensureRuffleReady() {
     if (typeof window.RufflePlayer?.newest === "function") return;
     await new Promise((r) => setTimeout(r, 25));
   }
-  throw new Error("Ruffle không khởi tạo được.");
+  throw new Error("Ruffle failed to initialize.");
 }
 
 function showError(container, message) {
@@ -188,7 +186,7 @@ async function mountSwfEmbed(container, resourceId, urlParams) {
   });
 }
 
-// Chặn mở trang shell trống (không có game). Có ?item= / ?file=.swf thì cho chạy cả trong tab và iframe.
+// Block empty shell (no resource). Allow with ?item= / ?file=.swf in both tab and iframe.
 const urlParams = bootstrapUrlParams();
 const resourceId = resolveResourceId(urlParams);
 const kind = resolvePlaybackKind(urlParams);
@@ -196,18 +194,18 @@ const container = document.getElementById("schools-resource-container");
 
 if (window.self === window.top && !resourceId) {
   document.body.innerHTML =
-    '<h2 class="error-msg">Truy cập bị từ chối. Mở qua liên kết game (có ?item=…) hoặc nhúng iframe.</h2>';
+    '<h2 class="error-msg">Access denied. Open via a resource link (?item=…) or embed in an iframe.</h2>';
   window.stop?.();
 } else if (!resourceId) {
   showError(
     container,
-    "Lỗi: Thiếu định danh. Ví dụ: ?item=ten-game&mode=html hoặc ?mode=flash&file=game.swf"
+    "Error: Missing resource ID. Example: ?item=resource-name&mode=html or ?mode=flash&file=resource.swf"
   );
 } else if (kind === "swf") {
   mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
     console.error(err);
     container.replaceChildren();
-    showError(container, err.message || "Không mở được nội dung SWF.");
+    showError(container, err.message || "Failed to load SWF content.");
   });
 } else {
   mountHtml5Embed(container, resourceId, urlParams);
