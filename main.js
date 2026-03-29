@@ -1,12 +1,13 @@
 // Shell only (index.html + main.js): pass ?item= / ?mode= / ?file= params.
 // H5 + SWF assets always loaded from R2 via CDN (default):
-//   H5:  ?item=folder&mode=html  → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
-//   SWF: ?mode=flash&file=game.swf → .../ubgx/.../game.swf
+//   H5:  ?item=folder&mode=html  → .../ubgx/h5/{item}/index.html
+//   SWF: ?mode=flash&file=game.swf → .../ubgx/game.swf
+//   Also accepts broken links like ?mode=flash&game.swf (file name only as param).
 // Optional ?storage=github for testing H5 files from the repo (not for production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
 // SWF: R2 via CDN (Worker /ubgx/*). Set R2_BUCKET if using S3 API endpoint.
-const R2_DOMAIN = "https://cdn.ubgx.me";
+const R2_DOMAIN = "https://ubgx.me";
 const R2_BUCKET = "";
 
 /** SWF files at /ubgx/ level, H5 at /ubgx/h5/… — R2 key is just the filename */
@@ -28,8 +29,6 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
 }
 
-const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@latest/ruffle.min.js";
-
 function parseFlexibleQuery(raw) {
   const s = String(raw || "")
     .trim()
@@ -38,14 +37,40 @@ function parseFlexibleQuery(raw) {
   return new URLSearchParams(s);
 }
 
+/**
+ * Fix URLs like ?mode=flash&10-is-again.swf (missing file=) — browser treats
+ * "10-is-again.swf" as a param name, not the file value.
+ */
+function normalizeBareSwfFilenameParams(params) {
+  const fileVal = (params.get("file") || "").trim();
+  if (fileVal && !fileVal.includes("..")) return params;
+  let bareKey = null;
+  for (const key of params.keys()) {
+    if (!/\.swf$/i.test(key)) continue;
+    if (key.includes("..") || key.includes("/") || key.includes("\\")) continue;
+    const v = (params.get(key) || "").trim();
+    if (v !== "" && v !== "1" && v !== "true") continue;
+    bareKey = key;
+    break;
+  }
+  if (!bareKey) return params;
+  const next = new URLSearchParams(params);
+  next.set("file", bareKey);
+  next.delete(bareKey);
+  if (!(next.get("mode") || "").trim() && !(next.get("type") || "").trim()) {
+    next.set("mode", "flash");
+  }
+  return next;
+}
+
 /** Google Sites: ?query may be duplicated or lost → fallback to hash */
 function bootstrapUrlParams() {
-  const search = parseFlexibleQuery(window.location.search);
+  const search = normalizeBareSwfFilenameParams(parseFlexibleQuery(window.location.search));
   if ([...search.keys()].length > 0) return search;
   const hash = window.location.hash.replace(/^#+/u, "").trim();
   if (hash.includes("=")) {
     try {
-      return parseFlexibleQuery(hash);
+      return normalizeBareSwfFilenameParams(parseFlexibleQuery(hash));
     } catch {
       /* ignore */
     }
@@ -111,36 +136,6 @@ function swfFilenameFromParams(urlParams, resourceId) {
   return /\.swf$/i.test(base) ? base : `${base}.swf`;
 }
 
-function loadRuffleScript() {
-  return new Promise((resolve, reject) => {
-    if (typeof window.RufflePlayer?.newest === "function") {
-      resolve();
-      return;
-    }
-    window.RufflePlayer = window.RufflePlayer || {};
-    window.RufflePlayer.config = {
-      autoplay: "on",
-      letterbox: "on",
-      unmuteOverlay: "hidden",
-    };
-    const s = document.createElement("script");
-    s.src = RUFFLE_SCRIPT;
-    s.async = true;
-    s.onload = () => resolve();
-    s.onerror = () => reject(new Error("Failed to load Ruffle player."));
-    document.head.appendChild(s);
-  });
-}
-
-async function ensureRuffleReady() {
-  await loadRuffleScript();
-  for (let i = 0; i < 80; i++) {
-    if (typeof window.RufflePlayer?.newest === "function") return;
-    await new Promise((r) => setTimeout(r, 25));
-  }
-  throw new Error("Ruffle failed to initialize.");
-}
-
 function showError(container, message) {
   container.innerHTML = `<h2 class="error-msg">${message}</h2>`;
 }
@@ -169,21 +164,27 @@ function mountHtml5Embed(container, resourceId, urlParams) {
   container.appendChild(iframe);
 }
 
-async function mountSwfEmbed(container, resourceId, urlParams) {
+/** Iframe to /e/swf on the SWF origin: same document origin as the file helps SWFs with site-lock / domain checks. */
+function mountSwfEmbed(container, resourceId, urlParams) {
   const prefix = R2_SWF_PREFIX.replace(/^\/+|\/+$/g, "");
   const swfName = swfFilenameFromParams(urlParams, resourceId);
   const swfUrl = r2PublicUrl(`${prefix}/${swfName}`);
-
-  await ensureRuffleReady();
-  const ruffle = window.RufflePlayer.newest();
-  const player = ruffle.createPlayer();
-  player.className = "schools-embed-ruffle";
-  container.appendChild(player);
-  await player.load({
-    url: swfUrl,
-    autoplay: "on",
-    letterbox: "on",
-  });
+  let origin;
+  try {
+    origin = new URL(swfUrl).origin;
+  } catch {
+    origin = R2_DOMAIN.replace(/\/+$/, "");
+  }
+  const pathOnly = `${prefix}/${swfName}`.replace(/^\/+/, "");
+  const iframe = document.createElement("iframe");
+  iframe.className = "schools-embed-frame";
+  iframe.src = `${origin}/e/swf?p=${encodeURIComponent(pathOnly)}`;
+  iframe.setAttribute("allowfullscreen", "true");
+  iframe.setAttribute("scrolling", "no");
+  iframe.setAttribute("referrerpolicy", "no-referrer-when-downgrade");
+  iframe.setAttribute("title", "Schools resource");
+  iframe.setAttribute("loading", "lazy");
+  container.appendChild(iframe);
 }
 
 // Block empty shell (no resource). Allow with ?item= / ?file=.swf in both tab and iframe.
@@ -202,11 +203,7 @@ if (window.self === window.top && !resourceId) {
     "Error: Missing resource ID. Example: ?item=resource-name&mode=html or ?mode=flash&file=resource.swf"
   );
 } else if (kind === "swf") {
-  mountSwfEmbed(container, resourceId, urlParams).catch((err) => {
-    console.error(err);
-    container.replaceChildren();
-    showError(container, err.message || "Failed to load SWF content.");
-  });
+  mountSwfEmbed(container, resourceId, urlParams);
 } else {
   mountHtml5Embed(container, resourceId, urlParams);
 }
