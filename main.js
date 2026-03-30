@@ -10,7 +10,7 @@ const R2_DOMAIN = "https://cdn.ubgx.me";
 const R2_BUCKET = "";
 
 /** SWF files at /ubgx/ level, H5 at /ubgx/h5/… — R2 key is just the filename */
-const R2_SWF_PREFIX = "ubgx";
+const R2_SWF_PREFIX = "ubgx/swf/";
 const R2_H5_PREFIX = "ubgx/h5";
 
 /** Default H5 from R2/CDN (shell can be GitHub Pages or cdn.ubgx.me). */
