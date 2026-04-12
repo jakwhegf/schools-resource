@@ -1,19 +1,19 @@
 // Shell only (index.html + main.js): pass ?item= / ?mode= / ?file= params.
 // H5 + SWF assets always loaded from R2 via CDN (default):
-//   H5:  ?item=folder&mode=html  → https://cdn.ubgx.me/ubgx/h5/{item}/index.html
-//   SWF: ?mode=flash&file=game.swf → .../ubgx/.../game.swf
+//   H5:  ?item=folder&mode=html  → https://classroom.support/assets/resources/{item}/index.html
+//   SWF: ?mode=flash&file=game.swf → .../assets/delivered/game.swf
 // Optional ?storage=github for testing H5 files from the repo (not for production).
 const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
-// SWF: R2 via CDN (Worker /ubgx/*). Set R2_BUCKET if using S3 API endpoint.
-const R2_DOMAIN = "https://cdn.ubgx.me";
+// SWF: R2 via CDN (Worker /assets/*). Set R2_BUCKET if using S3 API endpoint.
+const R2_DOMAIN = "https://classroom.support";
 const R2_BUCKET = "";
 
-/** SWF files at /ubgx/ level, H5 at /ubgx/h5/… — R2 key is just the filename */
-const R2_SWF_PREFIX = "ubgx/swf/";
-const R2_H5_PREFIX = "ubgx/h5";
+/** SWF files at /assets/delivered/ level, H5 at /assets/resources/… — R2 key includes the subfolder */
+const R2_SWF_PREFIX = "assets/delivered";
+const R2_H5_PREFIX = "assets/resources";
 
-/** Default H5 from R2/CDN (shell can be GitHub Pages or cdn.ubgx.me). */
+/** Default H5 from R2/CDN (shell can be GitHub Pages or classroom.support). */
 const H5_DEFAULT_STORAGE = "r2";
 
 /** r2 | github — H5 iframe source */
@@ -28,7 +28,7 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
 }
 
-const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle@latest/ruffle.min.js";
+const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle-web@0.2.0-nightly.2026.3.28/ruffle.min.js";
 
 function parseFlexibleQuery(raw) {
   const s = String(raw || "")
