@@ -1,22 +1,11 @@
-// Shell only (index.html + main.js): pass ?item= / ?mode= / ?file= params.
-// H5 + SWF assets always loaded from R2 via CDN (default):
-//   H5:  ?item=folder&mode=html  → https://classroom.support/assets/resources/{item}/index.html
-//   SWF: ?mode=flash&file=game.swf → .../assets/delivered/game.swf
-// Optional ?storage=github for testing H5 files from the repo (not for production).
-const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 
-// SWF: R2 via CDN (Worker /assets/*). Set R2_BUCKET if using S3 API endpoint.
+const H5_PAGES_BASE = "https://jakwhegf.github.io/schools-resource";
 const R2_DOMAIN = "https://classroom.support";
 const R2_BUCKET = "";
-
-/** SWF files at /assets/delivered/ level, H5 at /assets/resources/… — R2 key includes the subfolder */
 const R2_SWF_PREFIX = "assets/delivered";
 const R2_H5_PREFIX = "assets/resources";
-
-/** Default H5 from R2/CDN (shell can be GitHub Pages or classroom.support). */
 const H5_DEFAULT_STORAGE = "r2";
 
-/** r2 | github — H5 iframe source */
 function resolveH5IframeSrc(resourceId, urlParams) {
   const raw = (urlParams.get("storage") || urlParams.get("from") || H5_DEFAULT_STORAGE)
     .trim()
@@ -37,8 +26,6 @@ function parseFlexibleQuery(raw) {
     .replace(/^\?+/u, "");
   return new URLSearchParams(s);
 }
-
-/** Google Sites: ?query may be duplicated or lost → fallback to hash */
 function bootstrapUrlParams() {
   const search = parseFlexibleQuery(window.location.search);
   if ([...search.keys()].length > 0) return search;
@@ -75,8 +62,6 @@ function resolvePlaybackKind(urlParams) {
   if (raw === "html" || raw === "page" || raw === "web" || raw === "h5" || raw === "html5") return "h5";
   return "h5";
 }
-
-/** item → slug → id; for SWF can also pass file=name.swf (stem becomes item). */
 function resolveResourceId(urlParams) {
   let v =
     urlParams.get("item") ||
@@ -185,8 +170,6 @@ async function mountSwfEmbed(container, resourceId, urlParams) {
     letterbox: "on",
   });
 }
-
-// Block empty shell (no resource). Allow with ?item= / ?file=.swf in both tab and iframe.
 const urlParams = bootstrapUrlParams();
 const resourceId = resolveResourceId(urlParams);
 const kind = resolvePlaybackKind(urlParams);
