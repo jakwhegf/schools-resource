@@ -24,44 +24,99 @@
         (function () {
             var fsBtn = document.getElementById("fsBtn");
 
-            function toggleFullscreen() {
-                var target = document.getElementById("app-container") || document.body;
-                var isFs = document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+            function getFsEl() {
+                return (
+                    document.fullscreenElement ||
+                    document.mozFullScreenElement ||
+                    document.webkitFullscreenElement ||
+                    document.msFullscreenElement ||
+                    null
+                );
+            }
 
-                if (!isFs) {
-                    if (target.requestFullscreen) {
-                        target.requestFullscreen();
-                    } else if (target.msRequestFullscreen) {
-                        target.msRequestFullscreen();
-                    } else if (target.mozRequestFullScreen) {
-                        target.mozRequestFullScreen();
-                    } else if (target.webkitRequestFullscreen) {
-                        target.webkitRequestFullscreen(Element.ALLOW_KEYBOARD_INPUT);
+            function requestFs(el) {
+                var fns = [
+                    "requestFullscreen",
+                    "webkitRequestFullscreen",
+                    "mozRequestFullScreen",
+                    "msRequestFullscreen"
+                ];
+                for (var i = 0; i < fns.length; i++) {
+                    if (typeof el[fns[i]] === "function") {
+                        el[fns[i]]();
+                        return true;
                     }
+                }
+                return false;
+            }
+
+            function exitFs() {
+                var fns = [
+                    "exitFullscreen",
+                    "webkitExitFullscreen",
+                    "mozCancelFullScreen",
+                    "msExitFullscreen"
+                ];
+                for (var i = 0; i < fns.length; i++) {
+                    if (typeof document[fns[i]] === "function") {
+                        document[fns[i]]();
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            function toggleFullscreen() {
+                var el = getFsEl();
+                if (el) {
+                    exitFs();
                 } else {
-                    if (document.exitFullscreen) {
-                        document.exitFullscreen();
-                    } else if (document.msExitFullscreen) {
-                        document.msExitFullscreen();
-                    } else if (document.mozCancelFullScreen) {
-                        document.mozCancelFullScreen();
-                    } else if (document.webkitExitFullscreen) {
-                        document.webkitExitFullscreen();
+                    // Ưu tiên #app-container → document.documentElement → document.body
+                    var targets = [
+                        document.getElementById("app-container"),
+                        document.documentElement,
+                        document.body
+                    ];
+                    var worked = false;
+                    for (var i = 0; i < targets.length; i++) {
+                        if (targets[i] && requestFs(targets[i])) {
+                            worked = true;
+                            break;
+                        }
+                    }
+                    if (!worked) {
+                        // Fallback cuối: mở cửa sổ mới chiếm gần hết màn hình
+                        var w = screen.availWidth - 40;
+                        var h = screen.availHeight - 80;
+                        var left = 20;
+                        var top = 20;
+                        window.open(
+                            location.href,
+                            "_blank",
+                            "width=" + w + ",height=" + h + ",left=" + left + ",top=" + top +
+                            ",menubar=no,toolbar=no,location=no,status=no,resizable=yes,scrollbars=no"
+                        );
                     }
                 }
             }
 
             function updateBtnState() {
                 var btnSpan = document.querySelector("#fsBtn span");
-                var isFs = document.fullscreenElement || document.mozFullScreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-                if (btnSpan) btnSpan.textContent = isFs ? "Exit Fullscreen" : "Fullscreen";
+                if (btnSpan) {
+                    btnSpan.textContent = getFsEl() ? "Exit Fullscreen" : "Fullscreen";
+                }
             }
 
             fsBtn.addEventListener("click", toggleFullscreen);
-            document.addEventListener("fullscreenchange", updateBtnState);
-            document.addEventListener("webkitfullscreenchange", updateBtnState);
-            document.addEventListener("mozfullscreenchange", updateBtnState);
-            document.addEventListener("MSFullscreenChange", updateBtnState);
+            var fsEvents = [
+                "fullscreenchange",
+                "webkitfullscreenchange",
+                "mozfullscreenchange",
+                "MSFullscreenChange"
+            ];
+            for (var i = 0; i < fsEvents.length; i++) {
+                document.addEventListener(fsEvents[i], updateBtnState);
+            }
         })();
     </script>
 
